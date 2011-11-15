@@ -196,6 +196,12 @@ define Package/wpa-cli/Description
   WPA Supplicant control utility
 endef
 
+define Package/wpa-passphrase
+  SECTION:=net
+  CATEGORY:=Network
+  DEPENDS:=wpa-supplicant
+  TITLE:=Set WPA passphrase for a SSID
+endef
 
 ifneq ($(wildcard $(PKG_BUILD_DIR)/.config_*),$(subst .configured_,.config_,$(STAMP_CONFIGURED)))
   define Build/Configure/rebuild
@@ -270,7 +276,7 @@ endef
 
 define Build/Compile/supplicant
 	$(call Build/RunMake,wpa_supplicant, \
-		wpa_cli wpa_supplicant \
+		wpa_cli wpa_supplicant wpa_passphrase \
 	)
 endef
 
@@ -324,6 +330,10 @@ ifneq ($(LOCAL_TYPE),hostapd)
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(CP) $(PKG_BUILD_DIR)/wpa_supplicant/wpa_cli $(1)/usr/sbin/
   endef
+  define Package/wpa-passphrase/install
+  	$(INSTALL_DIR) $(1)/usr/sbin
+	$(CP) $(PKG_BUILD_DIR)/wpa_supplicant/wpa_passphrase $(1)/usr/sbin/
+  endef
 endif
 
 $(eval $(call BuildPackage,hostapd))
@@ -333,4 +343,5 @@ $(eval $(call BuildPackage,wpad-mini))
 $(eval $(call BuildPackage,wpa-supplicant))
 $(eval $(call BuildPackage,wpa-supplicant-mini))
 $(eval $(call BuildPackage,wpa-cli))
+$(eval $(call BuildPackage,wpa-passphrase))
 $(eval $(call BuildPackage,hostapd-utils))
