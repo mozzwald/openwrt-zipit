@@ -1,0 +1,24 @@
+#!/bin/sh
+#  Zipit Z2 Battery Percentage (average)
+#  Copyright (c) 2012 Joseph Honold <mozzwald@gmail.com>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+
+SUM=0
+for i in 1 2 3 4
+do
+    MAX=`cat /sys/class/i2c-dev/i2c-0/device/0-0055/power_supply/Z2/voltage_max`
+    MIN=`cat /sys/class/i2c-dev/i2c-0/device/0-0055/power_supply/Z2/voltage_min`
+    NOW=`cat /sys/class/i2c-dev/i2c-0/device/0-0055/power_supply/Z2/voltage_now`
+    let SUM+=$(( ($NOW-$MIN)*100/($MAX-$MIN) ))
+done
+echo "$(( ($SUM+4/2)/4 ))%"
