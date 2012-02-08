@@ -1,0 +1,9 @@
+#!/bin/sh /etc/rc.common
+# Set Zipit Z2 Sound
+
+START=96
+
+start() {
+	alsactl restore -f /etc/asound.state
+}
+
