@@ -28,7 +28,11 @@
 curdir:=toolchain
 
 # subdirectories to descend into
-$(curdir)/builddirs := $(if $(CONFIG_GDB),gdb) $(if $(CONFIG_INSIGHT),insight) $(if $(CONFIG_EXTERNAL_TOOLCHAIN),,kernel-headers binutils gcc/minimal gcc/initial gcc/final $(LIBC) $(if $(CONFIG_GLIBC_PORTS),glibc-ports))
+$(curdir)/builddirs := $(if $(CONFIG_GDB),gdb) $(if $(CONFIG_INSIGHT),insight) $(if $(CONFIG_EXTERNAL_TOOLCHAIN),wrapper,kernel-headers binutils gcc/minimal gcc/initial gcc/final $(LIBC))
+ifdef CONFIG_USE_UCLIBC
+  $(curdir)/builddirs += $(LIBC)/headers
+  $(curdir)/builddirs += $(LIBC)/utils
+endif
 $(curdir)/builddirs-compile:=$($(curdir)/builddirs-prepare)
 $(curdir)/builddirs-install:=$($(curdir)/builddirs-compile)
 
@@ -37,14 +41,21 @@ ifeq ($(CONFIG_EXTERNAL_TOOLCHAIN),)
   $(curdir)/$(LIBC)/prepare:=$(curdir)/kernel-headers/install
   $(curdir)/gcc/minimal/compile:=$(curdir)/binutils/install
   $(curdir)/kernel-headers/install:=$(curdir)/gcc/minimal/install
-  $(curdir)/gcc/initial/compile:=$(curdir)/$(LIBC)/prepare
   $(curdir)/gcc/initial/prepare:=$(curdir)/gcc/minimal/prepare
   $(curdir)/gcc/final/prepare:=$(curdir)/gcc/initial/prepare
-  $(curdir)/$(LIBC)/compile:=$(curdir)/gcc/initial/install
-  $(curdir)/gcc/final/compile:=$(curdir)/$(LIBC)/compile
-  $(curdir)/$(LIBC)/install:=$(curdir)/gcc/final/install
-  ifneq ($(CONFIG_GLIBC_PORTS),)
-    $(curdir)/glibc/prepare:=$(curdir)/glibc-ports/prepare
+
+  ifdef CONFIG_USE_UCLIBC
+    $(curdir)/gcc/initial/compile:=$(curdir)/$(LIBC)/headers/install
+    $(curdir)/$(LIBC)/compile:=$(curdir)/gcc/initial/install
+    $(curdir)/gcc/final/compile:=$(curdir)/$(LIBC)/install
+    $(curdir)/$(LIBC)/utils/compile:=$(curdir)/gcc/final/install
+    $(curdir)/$(LIBC)/prepare:=$(curdir)/$(LIBC)/headers/prepare
+    $(curdir)/$(LIBC)/utils/prepare:=$(curdir)/$(LIBC)/headers/prepare
+  else
+    $(curdir)/$(LIBC)/compile:=$(curdir)/gcc/initial/install
+    $(curdir)/$(LIBC)/install:=$(curdir)/gcc/final/install
+    $(curdir)/gcc/initial/compile:=$(curdir)/$(LIBC)/prepare
+    $(curdir)/gcc/final/compile:=$(curdir)/$(LIBC)/compile
   endif
 endif
 
@@ -60,6 +71,7 @@ ifneq ($(ARCH),)
 		$(if $(QUIET),,set -x;) \
 		mkdir -p "$$dir"; \
 		cd "$$dir"; \
+		ln -sf lib lib64; \
 		mkdir -p stamp lib usr/include usr/lib ; \
 	); done
 	@grep GCC_VERSION $@ >/dev/null 2>&1 || $(INSTALL_DATA) $(TOPDIR)/toolchain/info.mk $@

@@ -42,6 +42,8 @@ ifneq ($(CONFIG_JFFS2_LZMA),y)
   JFFS2OPTS += -x lzma
 endif
 
+SQUASHFS_BLOCKSIZE := 256k
+SQUASHFSOPT := -b $(SQUASHFS_BLOCKSIZE)
 SQUASHFSCOMP := gzip
 LZMA_XZ_OPTIONS := -Xpreset 9 -Xe -Xlc 0 -Xlp 2 -Xpb 2
 ifeq ($(CONFIG_SQUASHFS_LZMA),y)
@@ -87,7 +89,7 @@ else
   ifneq ($(CONFIG_TARGET_ROOTFS_SQUASHFS),)
     define Image/mkfs/squashfs
 		@mkdir -p $(TARGET_DIR)/overlay
-		$(STAGING_DIR_HOST)/bin/mksquashfs4 $(TARGET_DIR) $(KDIR)/root.squashfs -nopad -noappend -root-owned -comp $(SQUASHFSCOMP) -processors $(if $(CONFIG_PKG_BUILD_JOBS),$(CONFIG_PKG_BUILD_JOBS),1)
+		$(STAGING_DIR_HOST)/bin/mksquashfs4 $(TARGET_DIR) $(KDIR)/root.squashfs -nopad -noappend -root-owned -comp $(SQUASHFSCOMP) $(SQUASHFSOPT) -processors $(if $(CONFIG_PKG_BUILD_JOBS),$(CONFIG_PKG_BUILD_JOBS),1)
 		$(call Image/Build,squashfs)
     endef
   endif
@@ -140,11 +142,11 @@ endif
 
 define Image/mkfs/prepare/default
 	# Use symbolic permissions to avoid clobbering SUID/SGID/sticky bits
-	- $(FIND) $(TARGET_DIR) -type f -not -perm +0100 -not -name 'ssh_host*' -print0 | $(XARGS) -0 chmod u+rw,g+r,o+r
+	- $(FIND) $(TARGET_DIR) -type f -not -perm +0100 -not -name 'ssh_host*' -not -name 'shadow' -print0 | $(XARGS) -0 chmod u+rw,g+r,o+r
 	- $(FIND) $(TARGET_DIR) -type f -perm +0100 -print0 | $(XARGS) -0 chmod u+rwx,g+rx,o+rx
 	- $(FIND) $(TARGET_DIR) -type d -print0 | $(XARGS) -0 chmod u+rwx,g+rx,o+rx
 	$(INSTALL_DIR) $(TARGET_DIR)/tmp
-	chmod 0777 $(TARGET_DIR)/tmp
+	chmod 1777 $(TARGET_DIR)/tmp
 endef
 
 define Image/mkfs/prepare

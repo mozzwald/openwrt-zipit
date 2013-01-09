@@ -58,7 +58,7 @@ run_ramfs() { # <command> [...]
 	for file in $RAMFS_COPY_BIN; do
 		install_bin $file
 	done
-	install_file /etc/resolv.conf /etc/functions.sh /lib/upgrade/*.sh $RAMFS_COPY_DATA
+	install_file /etc/resolv.conf /lib/functions.sh /lib/functions.sh /lib/upgrade/*.sh $RAMFS_COPY_DATA
 
 	pivot $RAM_ROOT /mnt || {
 		echo "Failed to switch over to ramfs. Please reboot."
@@ -79,20 +79,28 @@ run_ramfs() { # <command> [...]
 
 kill_remaining() { # [ <signal> ]
 	local sig="${1:-TERM}"
-	echo -n "Sending $sig to remaing processes ... "
-	top -bn1 | while read pid ppid user stat vsz pvsz pcpu cmd args; do
-		case "$pid" in
-			[0-9]*) : ;;
-			*) continue ;;
-		esac
-		case "$cmd" in
-			# Skip kernel threads and essential services
-			\[*\]|*ash*|*init*|*watchdog*|*ssh*|*dropbear*|*telnet*|*login*) : ;;
+	echo -n "Sending $sig to remaining processes ... "
+
+	local stat
+	for stat in /proc/[0-9]*/stat; do
+		local pid name state ppid rest
+		read pid name state ppid rest < $stat
+		name="${name#(}"; name="${name%)}"
+
+		local cmdline
+		read cmdline < /proc/$pid/cmdline
+
+		# Skip kernel threads 
+		[ -n "$cmdline" ] || continue
+
+		case "$name" in
+			# Skip essential services
+			*ash*|*init*|*watchdog*|*ssh*|*dropbear*|*telnet*|*login*|*hostapd*|*wpa_supplicant*) : ;;
 
 			# Killable process
 			*)
 				if [ $pid -ne $$ ] && [ $ppid -ne $$ ]; then
-					echo -n "${cmd##*/} "
+					echo -n "$name "
 					kill -$sig $pid 2>/dev/null
 				fi
 			;;

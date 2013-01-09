@@ -50,7 +50,7 @@ SOUNDCORE_FILES ?= \
 define KernelPackage/sound-core
   SUBMENU:=$(SOUND_MENU)
   TITLE:=Sound support
-  DEPENDS:=@AUDIO_SUPPORT
+  DEPENDS:=@AUDIO_SUPPORT @!TARGET_xburst_qi_lb60
   KCONFIG:= \
 	CONFIG_SOUND \
 	CONFIG_SND \
@@ -144,6 +144,7 @@ $(eval $(call KernelPackage,sound-cs5535audio))
 
 define KernelPackage/sound-soc-core
   TITLE:=SoC sound support
+  DEPENDS:=+kmod-regmap
   KCONFIG:= \
 	CONFIG_SND_SOC \
 	CONFIG_SND_SOC_ALL_CODECS=n
@@ -201,7 +202,8 @@ define KernelPackage/sound-zipit-z2
   KCONFIG:= \
 	CONFIG_SND_PXA2XX_SOC \
 	CONFIG_SND_PXA2XX_SOC_I2S \
-	CONFIG_SND_PXA2XX_SOC_Z2
+	CONFIG_SND_PXA2XX_SOC_Z2 \
+	CONFIG_SND_PXA2XX_AC97=n
   FILES:= \
 	$(LINUX_DIR)/sound/arm/snd-pxa2xx-lib.ko \
 	$(LINUX_DIR)/sound/soc/pxa/snd-soc-pxa2xx.ko \
@@ -209,7 +211,7 @@ define KernelPackage/sound-zipit-z2
 	$(LINUX_DIR)/sound/soc/pxa/snd-soc-z2.ko \
 	$(LINUX_DIR)/sound/soc/codecs/snd-soc-wm8750.ko
   AUTOLOAD:=$(call AutoLoad,65,snd-pxa2xx-lib snd-soc-pxa2xx snd-soc-pxa2xx-i2s snd-soc-wm8750 snd-soc-z2)
-  DEPENDS:=@TARGET_pxa_zipitz2
+  DEPENDS:=@TARGET_pxa_zipitz2 +kmod-sound-soc-core
   $(call AddDepends/sound)
 endef
 

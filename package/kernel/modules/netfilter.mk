@@ -89,7 +89,7 @@ define KernelPackage/ipt-filter
   KCONFIG:=$(KCONFIG_IPT_FILTER)
   FILES:=$(foreach mod,$(IPT_FILTER-m),$(LINUX_DIR)/net/$(mod).ko)
   AUTOLOAD:=$(call AutoLoad,45,$(notdir $(IPT_FILTER-m)))
-  $(call AddDepends/ipt,+kmod-textsearch)
+  $(call AddDepends/ipt,+kmod-lib-textsearch)
 endef
 
 define KernelPackage/ipt-filter/description
@@ -122,6 +122,7 @@ define KernelPackage/ipt-ipopt/description
  - statistic
  - tcpmss
  - time
+ - ttl/TTL
  - unclean
 endef
 
@@ -206,7 +207,7 @@ define KernelPackage/ipt-nathelper-extra
   KCONFIG:=$(KCONFIG_IPT_NATHELPER_EXTRA)
   FILES:=$(foreach mod,$(IPT_NATHELPER_EXTRA-m),$(LINUX_DIR)/net/$(mod).ko)
   AUTOLOAD:=$(call AutoLoad,45,$(notdir $(IPT_NATHELPER_EXTRA-m)))
-  $(call AddDepends/ipt,+kmod-ipt-nat +kmod-textsearch)
+  $(call AddDepends/ipt,+kmod-ipt-nat +kmod-lib-textsearch)
 endef
 
 define KernelPackage/ipt-nathelper-extra/description
@@ -217,9 +218,9 @@ define KernelPackage/ipt-nathelper-extra/description
  - mms
  - pptp
  - proto_gre
- - rtsp
  - sip
  - snmp_basic
+ - broadcast
 endef
 
 $(eval $(call KernelPackage,ipt-nathelper-extra))
