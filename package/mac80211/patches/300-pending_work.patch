@@ -1,1248 +1,6 @@
---- a/drivers/net/wireless/ath/ath9k/ani.c
-+++ b/drivers/net/wireless/ath/ath9k/ani.c
-@@ -104,11 +104,6 @@ static const struct ani_cck_level_entry 
- #define ATH9K_ANI_CCK_DEF_LEVEL \
- 	2 /* default level - matches the INI settings */
- 
--static bool use_new_ani(struct ath_hw *ah)
--{
--	return AR_SREV_9300_20_OR_LATER(ah) || modparam_force_new_ani;
--}
--
- static void ath9k_hw_update_mibstats(struct ath_hw *ah,
- 				     struct ath9k_mib_stats *stats)
- {
-@@ -122,8 +117,6 @@ static void ath9k_hw_update_mibstats(str
- static void ath9k_ani_restart(struct ath_hw *ah)
- {
- 	struct ar5416AniState *aniState;
--	struct ath_common *common = ath9k_hw_common(ah);
--	u32 ofdm_base = 0, cck_base = 0;
- 
- 	if (!DO_ANI(ah))
- 		return;
-@@ -131,18 +124,10 @@ static void ath9k_ani_restart(struct ath
- 	aniState = &ah->curchan->ani;
- 	aniState->listenTime = 0;
- 
--	if (!use_new_ani(ah)) {
--		ofdm_base = AR_PHY_COUNTMAX - ah->config.ofdm_trig_high;
--		cck_base = AR_PHY_COUNTMAX - ah->config.cck_trig_high;
--	}
--
--	ath_dbg(common, ANI, "Writing ofdmbase=%u   cckbase=%u\n",
--		ofdm_base, cck_base);
--
- 	ENABLE_REGWRITE_BUFFER(ah);
- 
--	REG_WRITE(ah, AR_PHY_ERR_1, ofdm_base);
--	REG_WRITE(ah, AR_PHY_ERR_2, cck_base);
-+	REG_WRITE(ah, AR_PHY_ERR_1, 0);
-+	REG_WRITE(ah, AR_PHY_ERR_2, 0);
- 	REG_WRITE(ah, AR_PHY_ERR_MASK_1, AR_PHY_ERR_OFDM_TIMING);
- 	REG_WRITE(ah, AR_PHY_ERR_MASK_2, AR_PHY_ERR_CCK_TIMING);
- 
-@@ -154,110 +139,6 @@ static void ath9k_ani_restart(struct ath
- 	aniState->cckPhyErrCount = 0;
- }
- 
--static void ath9k_hw_ani_ofdm_err_trigger_old(struct ath_hw *ah)
--{
--	struct ieee80211_conf *conf = &ath9k_hw_common(ah)->hw->conf;
--	struct ar5416AniState *aniState;
--	int32_t rssi;
--
--	aniState = &ah->curchan->ani;
--
--	if (aniState->noiseImmunityLevel < HAL_NOISE_IMMUNE_MAX) {
--		if (ath9k_hw_ani_control(ah, ATH9K_ANI_NOISE_IMMUNITY_LEVEL,
--					 aniState->noiseImmunityLevel + 1)) {
--			return;
--		}
--	}
--
--	if (aniState->spurImmunityLevel < HAL_SPUR_IMMUNE_MAX) {
--		if (ath9k_hw_ani_control(ah, ATH9K_ANI_SPUR_IMMUNITY_LEVEL,
--					 aniState->spurImmunityLevel + 1)) {
--			return;
--		}
--	}
--
--	if (ah->opmode == NL80211_IFTYPE_AP) {
--		if (aniState->firstepLevel < HAL_FIRST_STEP_MAX) {
--			ath9k_hw_ani_control(ah, ATH9K_ANI_FIRSTEP_LEVEL,
--					     aniState->firstepLevel + 1);
--		}
--		return;
--	}
--	rssi = BEACON_RSSI(ah);
--	if (rssi > aniState->rssiThrHigh) {
--		if (!aniState->ofdmWeakSigDetectOff) {
--			if (ath9k_hw_ani_control(ah,
--					 ATH9K_ANI_OFDM_WEAK_SIGNAL_DETECTION,
--					 false)) {
--				ath9k_hw_ani_control(ah,
--					ATH9K_ANI_SPUR_IMMUNITY_LEVEL, 0);
--				return;
--			}
--		}
--		if (aniState->firstepLevel < HAL_FIRST_STEP_MAX) {
--			ath9k_hw_ani_control(ah, ATH9K_ANI_FIRSTEP_LEVEL,
--					     aniState->firstepLevel + 1);
--			return;
--		}
--	} else if (rssi > aniState->rssiThrLow) {
--		if (aniState->ofdmWeakSigDetectOff)
--			ath9k_hw_ani_control(ah,
--				     ATH9K_ANI_OFDM_WEAK_SIGNAL_DETECTION,
--				     true);
--		if (aniState->firstepLevel < HAL_FIRST_STEP_MAX)
--			ath9k_hw_ani_control(ah, ATH9K_ANI_FIRSTEP_LEVEL,
--					     aniState->firstepLevel + 1);
--		return;
--	} else {
--		if ((conf->channel->band == IEEE80211_BAND_2GHZ) &&
--		    !conf_is_ht(conf)) {
--			if (!aniState->ofdmWeakSigDetectOff)
--				ath9k_hw_ani_control(ah,
--				     ATH9K_ANI_OFDM_WEAK_SIGNAL_DETECTION,
--				     false);
--			if (aniState->firstepLevel > 0)
--				ath9k_hw_ani_control(ah,
--					     ATH9K_ANI_FIRSTEP_LEVEL, 0);
--			return;
--		}
--	}
--}
--
--static void ath9k_hw_ani_cck_err_trigger_old(struct ath_hw *ah)
--{
--	struct ieee80211_conf *conf = &ath9k_hw_common(ah)->hw->conf;
--	struct ar5416AniState *aniState;
--	int32_t rssi;
--
--	aniState = &ah->curchan->ani;
--	if (aniState->noiseImmunityLevel < HAL_NOISE_IMMUNE_MAX) {
--		if (ath9k_hw_ani_control(ah, ATH9K_ANI_NOISE_IMMUNITY_LEVEL,
--					 aniState->noiseImmunityLevel + 1)) {
--			return;
--		}
--	}
--	if (ah->opmode == NL80211_IFTYPE_AP) {
--		if (aniState->firstepLevel < HAL_FIRST_STEP_MAX) {
--			ath9k_hw_ani_control(ah, ATH9K_ANI_FIRSTEP_LEVEL,
--					     aniState->firstepLevel + 1);
--		}
--		return;
--	}
--	rssi = BEACON_RSSI(ah);
--	if (rssi > aniState->rssiThrLow) {
--		if (aniState->firstepLevel < HAL_FIRST_STEP_MAX)
--			ath9k_hw_ani_control(ah, ATH9K_ANI_FIRSTEP_LEVEL,
--					     aniState->firstepLevel + 1);
--	} else {
--		if ((conf->channel->band == IEEE80211_BAND_2GHZ) &&
--		    !conf_is_ht(conf)) {
--			if (aniState->firstepLevel > 0)
--				ath9k_hw_ani_control(ah,
--					     ATH9K_ANI_FIRSTEP_LEVEL, 0);
--		}
--	}
--}
--
- /* Adjust the OFDM Noise Immunity Level */
- static void ath9k_hw_set_ofdm_nil(struct ath_hw *ah, u8 immunityLevel)
- {
-@@ -265,18 +146,15 @@ static void ath9k_hw_set_ofdm_nil(struct
- 	struct ath_common *common = ath9k_hw_common(ah);
- 	const struct ani_ofdm_level_entry *entry_ofdm;
- 	const struct ani_cck_level_entry *entry_cck;
--
--	aniState->noiseFloor = BEACON_RSSI(ah);
-+	bool weak_sig;
- 
- 	ath_dbg(common, ANI, "**** ofdmlevel %d=>%d, rssi=%d[lo=%d hi=%d]\n",
- 		aniState->ofdmNoiseImmunityLevel,
--		immunityLevel, aniState->noiseFloor,
-+		immunityLevel, BEACON_RSSI(ah),
- 		aniState->rssiThrLow, aniState->rssiThrHigh);
- 
- 	if (aniState->update_ani)
--		aniState->ofdmNoiseImmunityLevel =
--			(immunityLevel > ATH9K_ANI_OFDM_DEF_LEVEL) ?
--			immunityLevel : ATH9K_ANI_OFDM_DEF_LEVEL;
-+		aniState->ofdmNoiseImmunityLevel = immunityLevel;
- 
- 	entry_ofdm = &ofdm_level_table[aniState->ofdmNoiseImmunityLevel];
- 	entry_cck = &cck_level_table[aniState->cckNoiseImmunityLevel];
-@@ -292,12 +170,22 @@ static void ath9k_hw_set_ofdm_nil(struct
- 				     ATH9K_ANI_FIRSTEP_LEVEL,
- 				     entry_ofdm->fir_step_level);
- 
--	if ((aniState->noiseFloor >= aniState->rssiThrHigh) &&
--	    (!aniState->ofdmWeakSigDetectOff !=
--	     entry_ofdm->ofdm_weak_signal_on)) {
-+	weak_sig = entry_ofdm->ofdm_weak_signal_on;
-+	if (ah->opmode == NL80211_IFTYPE_STATION &&
-+	    BEACON_RSSI(ah) <= aniState->rssiThrHigh)
-+		weak_sig = true;
-+
-+	if (aniState->ofdmWeakSigDetect != weak_sig)
- 			ath9k_hw_ani_control(ah,
- 				ATH9K_ANI_OFDM_WEAK_SIGNAL_DETECTION,
- 				entry_ofdm->ofdm_weak_signal_on);
-+
-+	if (aniState->ofdmNoiseImmunityLevel >= ATH9K_ANI_OFDM_DEF_LEVEL) {
-+		ah->config.ofdm_trig_high = ATH9K_ANI_OFDM_TRIG_HIGH;
-+		ah->config.ofdm_trig_low = ATH9K_ANI_OFDM_TRIG_LOW_ABOVE_INI;
-+	} else {
-+		ah->config.ofdm_trig_high = ATH9K_ANI_OFDM_TRIG_HIGH_BELOW_INI;
-+		ah->config.ofdm_trig_low = ATH9K_ANI_OFDM_TRIG_LOW;
- 	}
- }
- 
-@@ -308,11 +196,6 @@ static void ath9k_hw_ani_ofdm_err_trigge
- 	if (!DO_ANI(ah))
- 		return;
- 
--	if (!use_new_ani(ah)) {
--		ath9k_hw_ani_ofdm_err_trigger_old(ah);
--		return;
--	}
--
- 	aniState = &ah->curchan->ani;
- 
- 	if (aniState->ofdmNoiseImmunityLevel < ATH9K_ANI_OFDM_MAX_LEVEL)
-@@ -329,22 +212,18 @@ static void ath9k_hw_set_cck_nil(struct 
- 	const struct ani_ofdm_level_entry *entry_ofdm;
- 	const struct ani_cck_level_entry *entry_cck;
- 
--	aniState->noiseFloor = BEACON_RSSI(ah);
- 	ath_dbg(common, ANI, "**** ccklevel %d=>%d, rssi=%d[lo=%d hi=%d]\n",
- 		aniState->cckNoiseImmunityLevel, immunityLevel,
--		aniState->noiseFloor, aniState->rssiThrLow,
-+		BEACON_RSSI(ah), aniState->rssiThrLow,
- 		aniState->rssiThrHigh);
- 
--	if ((ah->opmode == NL80211_IFTYPE_STATION ||
--	     ah->opmode == NL80211_IFTYPE_ADHOC) &&
--	    aniState->noiseFloor <= aniState->rssiThrLow &&
-+	if (ah->opmode == NL80211_IFTYPE_STATION &&
-+	    BEACON_RSSI(ah) <= aniState->rssiThrLow &&
- 	    immunityLevel > ATH9K_ANI_CCK_MAX_LEVEL_LOW_RSSI)
- 		immunityLevel = ATH9K_ANI_CCK_MAX_LEVEL_LOW_RSSI;
- 
- 	if (aniState->update_ani)
--		aniState->cckNoiseImmunityLevel =
--			(immunityLevel > ATH9K_ANI_CCK_DEF_LEVEL) ?
--			immunityLevel : ATH9K_ANI_CCK_DEF_LEVEL;
-+		aniState->cckNoiseImmunityLevel = immunityLevel;
- 
- 	entry_ofdm = &ofdm_level_table[aniState->ofdmNoiseImmunityLevel];
- 	entry_cck = &cck_level_table[aniState->cckNoiseImmunityLevel];
-@@ -372,70 +251,12 @@ static void ath9k_hw_ani_cck_err_trigger
- 	if (!DO_ANI(ah))
- 		return;
- 
--	if (!use_new_ani(ah)) {
--		ath9k_hw_ani_cck_err_trigger_old(ah);
--		return;
--	}
--
- 	aniState = &ah->curchan->ani;
- 
- 	if (aniState->cckNoiseImmunityLevel < ATH9K_ANI_CCK_MAX_LEVEL)
- 		ath9k_hw_set_cck_nil(ah, aniState->cckNoiseImmunityLevel + 1);
- }
- 
--static void ath9k_hw_ani_lower_immunity_old(struct ath_hw *ah)
--{
--	struct ar5416AniState *aniState;
--	int32_t rssi;
--
--	aniState = &ah->curchan->ani;
--
--	if (ah->opmode == NL80211_IFTYPE_AP) {
--		if (aniState->firstepLevel > 0) {
--			if (ath9k_hw_ani_control(ah, ATH9K_ANI_FIRSTEP_LEVEL,
--						 aniState->firstepLevel - 1))
--				return;
--		}
--	} else {
--		rssi = BEACON_RSSI(ah);
--		if (rssi > aniState->rssiThrHigh) {
--			/* XXX: Handle me */
--		} else if (rssi > aniState->rssiThrLow) {
--			if (aniState->ofdmWeakSigDetectOff) {
--				if (ath9k_hw_ani_control(ah,
--					 ATH9K_ANI_OFDM_WEAK_SIGNAL_DETECTION,
--					 true))
--					return;
--			}
--			if (aniState->firstepLevel > 0) {
--				if (ath9k_hw_ani_control(ah,
--					 ATH9K_ANI_FIRSTEP_LEVEL,
--					 aniState->firstepLevel - 1))
--					return;
--			}
--		} else {
--			if (aniState->firstepLevel > 0) {
--				if (ath9k_hw_ani_control(ah,
--					 ATH9K_ANI_FIRSTEP_LEVEL,
--					 aniState->firstepLevel - 1))
--					return;
--			}
--		}
--	}
--
--	if (aniState->spurImmunityLevel > 0) {
--		if (ath9k_hw_ani_control(ah, ATH9K_ANI_SPUR_IMMUNITY_LEVEL,
--					 aniState->spurImmunityLevel - 1))
--			return;
--	}
--
--	if (aniState->noiseImmunityLevel > 0) {
--		ath9k_hw_ani_control(ah, ATH9K_ANI_NOISE_IMMUNITY_LEVEL,
--				     aniState->noiseImmunityLevel - 1);
--		return;
--	}
--}
--
- /*
-  * only lower either OFDM or CCK errors per turn
-  * we lower the other one next time
-@@ -446,11 +267,6 @@ static void ath9k_hw_ani_lower_immunity(
- 
- 	aniState = &ah->curchan->ani;
- 
--	if (!use_new_ani(ah)) {
--		ath9k_hw_ani_lower_immunity_old(ah);
--		return;
--	}
--
- 	/* lower OFDM noise immunity */
- 	if (aniState->ofdmNoiseImmunityLevel > 0 &&
- 	    (aniState->ofdmsTurn || aniState->cckNoiseImmunityLevel == 0)) {
-@@ -463,72 +279,6 @@ static void ath9k_hw_ani_lower_immunity(
- 		ath9k_hw_set_cck_nil(ah, aniState->cckNoiseImmunityLevel - 1);
- }
- 
--static void ath9k_ani_reset_old(struct ath_hw *ah, bool is_scanning)
--{
--	struct ar5416AniState *aniState;
--	struct ath9k_channel *chan = ah->curchan;
--	struct ath_common *common = ath9k_hw_common(ah);
--
--	if (!DO_ANI(ah))
--		return;
--
--	aniState = &ah->curchan->ani;
--
--	if (ah->opmode != NL80211_IFTYPE_STATION
--	    && ah->opmode != NL80211_IFTYPE_ADHOC) {
--		ath_dbg(common, ANI, "Reset ANI state opmode %u\n", ah->opmode);
--		ah->stats.ast_ani_reset++;
--
--		if (ah->opmode == NL80211_IFTYPE_AP) {
--			/*
--			 * ath9k_hw_ani_control() will only process items set on
--			 * ah->ani_function
--			 */
--			if (IS_CHAN_2GHZ(chan))
--				ah->ani_function = (ATH9K_ANI_SPUR_IMMUNITY_LEVEL |
--						    ATH9K_ANI_FIRSTEP_LEVEL);
--			else
--				ah->ani_function = 0;
--		}
--
--		ath9k_hw_ani_control(ah, ATH9K_ANI_NOISE_IMMUNITY_LEVEL, 0);
--		ath9k_hw_ani_control(ah, ATH9K_ANI_SPUR_IMMUNITY_LEVEL, 0);
--		ath9k_hw_ani_control(ah, ATH9K_ANI_FIRSTEP_LEVEL, 0);
--		ath9k_hw_ani_control(ah, ATH9K_ANI_OFDM_WEAK_SIGNAL_DETECTION,
--				     !ATH9K_ANI_USE_OFDM_WEAK_SIG);
--		ath9k_hw_ani_control(ah, ATH9K_ANI_CCK_WEAK_SIGNAL_THR,
--				     ATH9K_ANI_CCK_WEAK_SIG_THR);
--
--		ath9k_ani_restart(ah);
--		return;
--	}
--
--	if (aniState->noiseImmunityLevel != 0)
--		ath9k_hw_ani_control(ah, ATH9K_ANI_NOISE_IMMUNITY_LEVEL,
--				     aniState->noiseImmunityLevel);
--	if (aniState->spurImmunityLevel != 0)
--		ath9k_hw_ani_control(ah, ATH9K_ANI_SPUR_IMMUNITY_LEVEL,
--				     aniState->spurImmunityLevel);
--	if (aniState->ofdmWeakSigDetectOff)
--		ath9k_hw_ani_control(ah, ATH9K_ANI_OFDM_WEAK_SIGNAL_DETECTION,
--				     !aniState->ofdmWeakSigDetectOff);
--	if (aniState->cckWeakSigThreshold)
--		ath9k_hw_ani_control(ah, ATH9K_ANI_CCK_WEAK_SIGNAL_THR,
--				     aniState->cckWeakSigThreshold);
--	if (aniState->firstepLevel != 0)
--		ath9k_hw_ani_control(ah, ATH9K_ANI_FIRSTEP_LEVEL,
--				     aniState->firstepLevel);
--
--	ath9k_ani_restart(ah);
--
--	ENABLE_REGWRITE_BUFFER(ah);
--
--	REG_WRITE(ah, AR_PHY_ERR_MASK_1, AR_PHY_ERR_OFDM_TIMING);
--	REG_WRITE(ah, AR_PHY_ERR_MASK_2, AR_PHY_ERR_CCK_TIMING);
--
--	REGWRITE_BUFFER_FLUSH(ah);
--}
--
- /*
-  * Restore the ANI parameters in the HAL and reset the statistics.
-  * This routine should be called for every hardware reset and for
-@@ -539,13 +289,11 @@ void ath9k_ani_reset(struct ath_hw *ah, 
- 	struct ar5416AniState *aniState = &ah->curchan->ani;
- 	struct ath9k_channel *chan = ah->curchan;
- 	struct ath_common *common = ath9k_hw_common(ah);
-+	int ofdm_nil, cck_nil;
- 
- 	if (!DO_ANI(ah))
- 		return;
- 
--	if (!use_new_ani(ah))
--		return ath9k_ani_reset_old(ah, is_scanning);
--
- 	BUG_ON(aniState == NULL);
- 	ah->stats.ast_ani_reset++;
- 
-@@ -563,6 +311,11 @@ void ath9k_ani_reset(struct ath_hw *ah, 
- 	/* always allow mode (on/off) to be controlled */
- 	ah->ani_function |= ATH9K_ANI_MODE;
- 
-+	ofdm_nil = max_t(int, ATH9K_ANI_OFDM_DEF_LEVEL,
-+			 aniState->ofdmNoiseImmunityLevel);
-+	cck_nil = max_t(int, ATH9K_ANI_CCK_DEF_LEVEL,
-+			 aniState->cckNoiseImmunityLevel);
-+
- 	if (is_scanning ||
- 	    (ah->opmode != NL80211_IFTYPE_STATION &&
- 	     ah->opmode != NL80211_IFTYPE_ADHOC)) {
-@@ -586,8 +339,8 @@ void ath9k_ani_reset(struct ath_hw *ah, 
- 				aniState->cckNoiseImmunityLevel);
- 
- 			aniState->update_ani = false;
--			ath9k_hw_set_ofdm_nil(ah, ATH9K_ANI_OFDM_DEF_LEVEL);
--			ath9k_hw_set_cck_nil(ah, ATH9K_ANI_CCK_DEF_LEVEL);
-+			ofdm_nil = ATH9K_ANI_OFDM_DEF_LEVEL;
-+			cck_nil = ATH9K_ANI_CCK_DEF_LEVEL;
- 		}
- 	} else {
- 		/*
-@@ -603,11 +356,9 @@ void ath9k_ani_reset(struct ath_hw *ah, 
- 			aniState->cckNoiseImmunityLevel);
- 
- 			aniState->update_ani = true;
--			ath9k_hw_set_ofdm_nil(ah,
--					      aniState->ofdmNoiseImmunityLevel);
--			ath9k_hw_set_cck_nil(ah,
--					     aniState->cckNoiseImmunityLevel);
- 	}
-+	ath9k_hw_set_ofdm_nil(ah, ofdm_nil);
-+	ath9k_hw_set_cck_nil(ah, cck_nil);
- 
- 	/*
- 	 * enable phy counters if hw supports or if not, enable phy
-@@ -627,9 +378,6 @@ static bool ath9k_hw_ani_read_counters(s
- {
- 	struct ath_common *common = ath9k_hw_common(ah);
- 	struct ar5416AniState *aniState = &ah->curchan->ani;
--	u32 ofdm_base = 0;
--	u32 cck_base = 0;
--	u32 ofdmPhyErrCnt, cckPhyErrCnt;
- 	u32 phyCnt1, phyCnt2;
- 	int32_t listenTime;
- 
-@@ -642,11 +390,6 @@ static bool ath9k_hw_ani_read_counters(s
- 		return false;
- 	}
- 
--	if (!use_new_ani(ah)) {
--		ofdm_base = AR_PHY_COUNTMAX - ah->config.ofdm_trig_high;
--		cck_base = AR_PHY_COUNTMAX - ah->config.cck_trig_high;
--	}
--
- 	aniState->listenTime += listenTime;
- 
- 	ath9k_hw_update_mibstats(ah, &ah->ah_mibStats);
-@@ -654,35 +397,12 @@ static bool ath9k_hw_ani_read_counters(s
- 	phyCnt1 = REG_READ(ah, AR_PHY_ERR_1);
- 	phyCnt2 = REG_READ(ah, AR_PHY_ERR_2);
- 
--	if (!use_new_ani(ah) && (phyCnt1 < ofdm_base || phyCnt2 < cck_base)) {
--		if (phyCnt1 < ofdm_base) {
--			ath_dbg(common, ANI,
--				"phyCnt1 0x%x, resetting counter value to 0x%x\n",
--				phyCnt1, ofdm_base);
--			REG_WRITE(ah, AR_PHY_ERR_1, ofdm_base);
--			REG_WRITE(ah, AR_PHY_ERR_MASK_1,
--				  AR_PHY_ERR_OFDM_TIMING);
--		}
--		if (phyCnt2 < cck_base) {
--			ath_dbg(common, ANI,
--				"phyCnt2 0x%x, resetting counter value to 0x%x\n",
--				phyCnt2, cck_base);
--			REG_WRITE(ah, AR_PHY_ERR_2, cck_base);
--			REG_WRITE(ah, AR_PHY_ERR_MASK_2,
--				  AR_PHY_ERR_CCK_TIMING);
--		}
--		return false;
--	}
-+	ah->stats.ast_ani_ofdmerrs += phyCnt1 - aniState->ofdmPhyErrCount;
-+	aniState->ofdmPhyErrCount = phyCnt1;
-+
-+	ah->stats.ast_ani_cckerrs += phyCnt2 - aniState->cckPhyErrCount;
-+	aniState->cckPhyErrCount = phyCnt2;
- 
--	ofdmPhyErrCnt = phyCnt1 - ofdm_base;
--	ah->stats.ast_ani_ofdmerrs +=
--		ofdmPhyErrCnt - aniState->ofdmPhyErrCount;
--	aniState->ofdmPhyErrCount = ofdmPhyErrCnt;
--
--	cckPhyErrCnt = phyCnt2 - cck_base;
--	ah->stats.ast_ani_cckerrs +=
--		cckPhyErrCnt - aniState->cckPhyErrCount;
--	aniState->cckPhyErrCount = cckPhyErrCnt;
- 	return true;
- }
- 
-@@ -716,21 +436,10 @@ void ath9k_hw_ani_monitor(struct ath_hw 
- 
- 	if (aniState->listenTime > ah->aniperiod) {
- 		if (cckPhyErrRate < ah->config.cck_trig_low &&
--		    ((ofdmPhyErrRate < ah->config.ofdm_trig_low &&
--		      aniState->ofdmNoiseImmunityLevel <
--		      ATH9K_ANI_OFDM_DEF_LEVEL) ||
--		     (ofdmPhyErrRate < ATH9K_ANI_OFDM_TRIG_LOW_ABOVE_INI &&
--		      aniState->ofdmNoiseImmunityLevel >=
--		      ATH9K_ANI_OFDM_DEF_LEVEL))) {
-+		    ofdmPhyErrRate < ah->config.ofdm_trig_low) {
- 			ath9k_hw_ani_lower_immunity(ah);
- 			aniState->ofdmsTurn = !aniState->ofdmsTurn;
--		} else if ((ofdmPhyErrRate > ah->config.ofdm_trig_high &&
--			    aniState->ofdmNoiseImmunityLevel >=
--			    ATH9K_ANI_OFDM_DEF_LEVEL) ||
--			   (ofdmPhyErrRate >
--			    ATH9K_ANI_OFDM_TRIG_HIGH_BELOW_INI &&
--			    aniState->ofdmNoiseImmunityLevel <
--			    ATH9K_ANI_OFDM_DEF_LEVEL)) {
-+		} else if (ofdmPhyErrRate > ah->config.ofdm_trig_high) {
- 			ath9k_hw_ani_ofdm_err_trigger(ah);
- 			aniState->ofdmsTurn = false;
- 		} else if (cckPhyErrRate > ah->config.cck_trig_high) {
-@@ -778,49 +487,6 @@ void ath9k_hw_disable_mib_counters(struc
- }
- EXPORT_SYMBOL(ath9k_hw_disable_mib_counters);
- 
--/*
-- * Process a MIB interrupt.  We may potentially be invoked because
-- * any of the MIB counters overflow/trigger so don't assume we're
-- * here because a PHY error counter triggered.
-- */
--void ath9k_hw_proc_mib_event(struct ath_hw *ah)
--{
--	u32 phyCnt1, phyCnt2;
--
--	/* Reset these counters regardless */
--	REG_WRITE(ah, AR_FILT_OFDM, 0);
--	REG_WRITE(ah, AR_FILT_CCK, 0);
--	if (!(REG_READ(ah, AR_SLP_MIB_CTRL) & AR_SLP_MIB_PENDING))
--		REG_WRITE(ah, AR_SLP_MIB_CTRL, AR_SLP_MIB_CLEAR);
--
--	/* Clear the mib counters and save them in the stats */
--	ath9k_hw_update_mibstats(ah, &ah->ah_mibStats);
--
--	if (!DO_ANI(ah)) {
--		/*
--		 * We must always clear the interrupt cause by
--		 * resetting the phy error regs.
--		 */
--		REG_WRITE(ah, AR_PHY_ERR_1, 0);
--		REG_WRITE(ah, AR_PHY_ERR_2, 0);
--		return;
--	}
--
--	/* NB: these are not reset-on-read */
--	phyCnt1 = REG_READ(ah, AR_PHY_ERR_1);
--	phyCnt2 = REG_READ(ah, AR_PHY_ERR_2);
--	if (((phyCnt1 & AR_MIBCNT_INTRMASK) == AR_MIBCNT_INTRMASK) ||
--	    ((phyCnt2 & AR_MIBCNT_INTRMASK) == AR_MIBCNT_INTRMASK)) {
--
--		if (!use_new_ani(ah))
--			ath9k_hw_ani_read_counters(ah);
--
--		/* NB: always restart to insure the h/w counters are reset */
--		ath9k_ani_restart(ah);
--	}
--}
--EXPORT_SYMBOL(ath9k_hw_proc_mib_event);
--
- void ath9k_hw_ani_setup(struct ath_hw *ah)
- {
- 	int i;
-@@ -845,50 +511,31 @@ void ath9k_hw_ani_init(struct ath_hw *ah
- 
- 	ath_dbg(common, ANI, "Initialize ANI\n");
- 
--	if (use_new_ani(ah)) {
--		ah->config.ofdm_trig_high = ATH9K_ANI_OFDM_TRIG_HIGH_NEW;
--		ah->config.ofdm_trig_low = ATH9K_ANI_OFDM_TRIG_LOW_NEW;
-+	ah->config.ofdm_trig_high = ATH9K_ANI_OFDM_TRIG_HIGH;
-+	ah->config.ofdm_trig_low = ATH9K_ANI_OFDM_TRIG_LOW;
- 
--		ah->config.cck_trig_high = ATH9K_ANI_CCK_TRIG_HIGH_NEW;
--		ah->config.cck_trig_low = ATH9K_ANI_CCK_TRIG_LOW_NEW;
--	} else {
--		ah->config.ofdm_trig_high = ATH9K_ANI_OFDM_TRIG_HIGH_OLD;
--		ah->config.ofdm_trig_low = ATH9K_ANI_OFDM_TRIG_LOW_OLD;
--
--		ah->config.cck_trig_high = ATH9K_ANI_CCK_TRIG_HIGH_OLD;
--		ah->config.cck_trig_low = ATH9K_ANI_CCK_TRIG_LOW_OLD;
--	}
-+	ah->config.cck_trig_high = ATH9K_ANI_CCK_TRIG_HIGH;
-+	ah->config.cck_trig_low = ATH9K_ANI_CCK_TRIG_LOW;
- 
- 	for (i = 0; i < ARRAY_SIZE(ah->channels); i++) {
- 		struct ath9k_channel *chan = &ah->channels[i];
- 		struct ar5416AniState *ani = &chan->ani;
- 
--		if (use_new_ani(ah)) {
--			ani->spurImmunityLevel =
--				ATH9K_ANI_SPUR_IMMUNE_LVL_NEW;
-+		ani->spurImmunityLevel = ATH9K_ANI_SPUR_IMMUNE_LVL;
- 
--			ani->firstepLevel = ATH9K_ANI_FIRSTEP_LVL_NEW;
-+		ani->firstepLevel = ATH9K_ANI_FIRSTEP_LVL;
- 
--			if (AR_SREV_9300_20_OR_LATER(ah))
--				ani->mrcCCKOff =
--					!ATH9K_ANI_ENABLE_MRC_CCK;
--			else
--				ani->mrcCCKOff = true;
--
--			ani->ofdmsTurn = true;
--		} else {
--			ani->spurImmunityLevel =
--				ATH9K_ANI_SPUR_IMMUNE_LVL_OLD;
--			ani->firstepLevel = ATH9K_ANI_FIRSTEP_LVL_OLD;
-+		if (AR_SREV_9300_20_OR_LATER(ah))
-+			ani->mrcCCKOff =
-+				!ATH9K_ANI_ENABLE_MRC_CCK;
-+		else
-+			ani->mrcCCKOff = true;
- 
--			ani->cckWeakSigThreshold =
--				ATH9K_ANI_CCK_WEAK_SIG_THR;
--		}
-+		ani->ofdmsTurn = true;
- 
- 		ani->rssiThrHigh = ATH9K_ANI_RSSI_THR_HIGH;
- 		ani->rssiThrLow = ATH9K_ANI_RSSI_THR_LOW;
--		ani->ofdmWeakSigDetectOff =
--			!ATH9K_ANI_USE_OFDM_WEAK_SIG;
-+		ani->ofdmWeakSigDetect = ATH9K_ANI_USE_OFDM_WEAK_SIG;
- 		ani->cckNoiseImmunityLevel = ATH9K_ANI_CCK_DEF_LEVEL;
- 		ani->ofdmNoiseImmunityLevel = ATH9K_ANI_OFDM_DEF_LEVEL;
- 		ani->update_ani = false;
-@@ -898,13 +545,8 @@ void ath9k_hw_ani_init(struct ath_hw *ah
- 	 * since we expect some ongoing maintenance on the tables, let's sanity
- 	 * check here default level should not modify INI setting.
- 	 */
--	if (use_new_ani(ah)) {
--		ah->aniperiod = ATH9K_ANI_PERIOD_NEW;
--		ah->config.ani_poll_interval = ATH9K_ANI_POLLINTERVAL_NEW;
--	} else {
--		ah->aniperiod = ATH9K_ANI_PERIOD_OLD;
--		ah->config.ani_poll_interval = ATH9K_ANI_POLLINTERVAL_OLD;
--	}
-+	ah->aniperiod = ATH9K_ANI_PERIOD;
-+	ah->config.ani_poll_interval = ATH9K_ANI_POLLINTERVAL;
- 
- 	if (ah->config.enable_ani)
- 		ah->proc_phyerr |= HAL_PROCESS_ANI;
---- a/drivers/net/wireless/ath/ath9k/ani.h
-+++ b/drivers/net/wireless/ath/ath9k/ani.h
-@@ -24,42 +24,34 @@
- #define BEACON_RSSI(ahp) (ahp->stats.avgbrssi)
- 
- /* units are errors per second */
--#define ATH9K_ANI_OFDM_TRIG_HIGH_OLD      500
--#define ATH9K_ANI_OFDM_TRIG_HIGH_NEW      3500
-+#define ATH9K_ANI_OFDM_TRIG_HIGH          3500
- #define ATH9K_ANI_OFDM_TRIG_HIGH_BELOW_INI 1000
- 
- /* units are errors per second */
--#define ATH9K_ANI_OFDM_TRIG_LOW_OLD       200
--#define ATH9K_ANI_OFDM_TRIG_LOW_NEW       400
-+#define ATH9K_ANI_OFDM_TRIG_LOW           400
- #define ATH9K_ANI_OFDM_TRIG_LOW_ABOVE_INI 900
- 
- /* units are errors per second */
--#define ATH9K_ANI_CCK_TRIG_HIGH_OLD       200
--#define ATH9K_ANI_CCK_TRIG_HIGH_NEW       600
-+#define ATH9K_ANI_CCK_TRIG_HIGH           600
- 
- /* units are errors per second */
--#define ATH9K_ANI_CCK_TRIG_LOW_OLD        100
--#define ATH9K_ANI_CCK_TRIG_LOW_NEW        300
-+#define ATH9K_ANI_CCK_TRIG_LOW            300
- 
- #define ATH9K_ANI_NOISE_IMMUNE_LVL        4
- #define ATH9K_ANI_USE_OFDM_WEAK_SIG       true
- #define ATH9K_ANI_CCK_WEAK_SIG_THR        false
- 
--#define ATH9K_ANI_SPUR_IMMUNE_LVL_OLD     7
--#define ATH9K_ANI_SPUR_IMMUNE_LVL_NEW     3
-+#define ATH9K_ANI_SPUR_IMMUNE_LVL         3
- 
--#define ATH9K_ANI_FIRSTEP_LVL_OLD         0
--#define ATH9K_ANI_FIRSTEP_LVL_NEW         2
-+#define ATH9K_ANI_FIRSTEP_LVL             2
- 
- #define ATH9K_ANI_RSSI_THR_HIGH           40
- #define ATH9K_ANI_RSSI_THR_LOW            7
- 
--#define ATH9K_ANI_PERIOD_OLD              100
--#define ATH9K_ANI_PERIOD_NEW              300
-+#define ATH9K_ANI_PERIOD                  300
- 
- /* in ms */
--#define ATH9K_ANI_POLLINTERVAL_OLD        100
--#define ATH9K_ANI_POLLINTERVAL_NEW        1000
-+#define ATH9K_ANI_POLLINTERVAL            1000
- 
- #define HAL_NOISE_IMMUNE_MAX              4
- #define HAL_SPUR_IMMUNE_MAX               7
-@@ -122,13 +114,12 @@ struct ar5416AniState {
- 	u8 mrcCCKOff;
- 	u8 spurImmunityLevel;
- 	u8 firstepLevel;
--	u8 ofdmWeakSigDetectOff;
-+	u8 ofdmWeakSigDetect;
- 	u8 cckWeakSigThreshold;
- 	bool update_ani;
- 	u32 listenTime;
- 	int32_t rssiThrLow;
- 	int32_t rssiThrHigh;
--	u32 noiseFloor;
- 	u32 ofdmPhyErrCount;
- 	u32 cckPhyErrCount;
- 	int16_t pktRssi[2];
---- a/drivers/net/wireless/ath/ath9k/ar5008_phy.c
-+++ b/drivers/net/wireless/ath/ath9k/ar5008_phy.c
-@@ -995,141 +995,6 @@ static u32 ar5008_hw_compute_pll_control
- 	return pll;
- }
- 
--static bool ar5008_hw_ani_control_old(struct ath_hw *ah,
--				      enum ath9k_ani_cmd cmd,
--				      int param)
--{
--	struct ar5416AniState *aniState = &ah->curchan->ani;
--	struct ath_common *common = ath9k_hw_common(ah);
--
--	switch (cmd & ah->ani_function) {
--	case ATH9K_ANI_NOISE_IMMUNITY_LEVEL:{
--		u32 level = param;
--
--		if (level >= ARRAY_SIZE(ah->totalSizeDesired)) {
--			ath_dbg(common, ANI, "level out of range (%u > %zu)\n",
--				level, ARRAY_SIZE(ah->totalSizeDesired));
--			return false;
--		}
--
--		REG_RMW_FIELD(ah, AR_PHY_DESIRED_SZ,
--			      AR_PHY_DESIRED_SZ_TOT_DES,
--			      ah->totalSizeDesired[level]);
--		REG_RMW_FIELD(ah, AR_PHY_AGC_CTL1,
--			      AR_PHY_AGC_CTL1_COARSE_LOW,
--			      ah->coarse_low[level]);
--		REG_RMW_FIELD(ah, AR_PHY_AGC_CTL1,
--			      AR_PHY_AGC_CTL1_COARSE_HIGH,
--			      ah->coarse_high[level]);
--		REG_RMW_FIELD(ah, AR_PHY_FIND_SIG,
--			      AR_PHY_FIND_SIG_FIRPWR,
--			      ah->firpwr[level]);
--
--		if (level > aniState->noiseImmunityLevel)
--			ah->stats.ast_ani_niup++;
--		else if (level < aniState->noiseImmunityLevel)
--			ah->stats.ast_ani_nidown++;
--		aniState->noiseImmunityLevel = level;
--		break;
--	}
--	case ATH9K_ANI_OFDM_WEAK_SIGNAL_DETECTION:{
--		u32 on = param ? 1 : 0;
--
--		if (on)
--			REG_SET_BIT(ah, AR_PHY_SFCORR_LOW,
--				    AR_PHY_SFCORR_LOW_USE_SELF_CORR_LOW);
--		else
--			REG_CLR_BIT(ah, AR_PHY_SFCORR_LOW,
--				    AR_PHY_SFCORR_LOW_USE_SELF_CORR_LOW);
--
--		if (!on != aniState->ofdmWeakSigDetectOff) {
--			if (on)
--				ah->stats.ast_ani_ofdmon++;
--			else
--				ah->stats.ast_ani_ofdmoff++;
--			aniState->ofdmWeakSigDetectOff = !on;
--		}
--		break;
--	}
--	case ATH9K_ANI_CCK_WEAK_SIGNAL_THR:{
--		static const int weakSigThrCck[] = { 8, 6 };
--		u32 high = param ? 1 : 0;
--
--		REG_RMW_FIELD(ah, AR_PHY_CCK_DETECT,
--			      AR_PHY_CCK_DETECT_WEAK_SIG_THR_CCK,
--			      weakSigThrCck[high]);
--		if (high != aniState->cckWeakSigThreshold) {
--			if (high)
--				ah->stats.ast_ani_cckhigh++;
--			else
--				ah->stats.ast_ani_ccklow++;
--			aniState->cckWeakSigThreshold = high;
--		}
--		break;
--	}
--	case ATH9K_ANI_FIRSTEP_LEVEL:{
--		static const int firstep[] = { 0, 4, 8 };
--		u32 level = param;
--
--		if (level >= ARRAY_SIZE(firstep)) {
--			ath_dbg(common, ANI, "level out of range (%u > %zu)\n",
--				level, ARRAY_SIZE(firstep));
--			return false;
--		}
--		REG_RMW_FIELD(ah, AR_PHY_FIND_SIG,
--			      AR_PHY_FIND_SIG_FIRSTEP,
--			      firstep[level]);
--		if (level > aniState->firstepLevel)
--			ah->stats.ast_ani_stepup++;
--		else if (level < aniState->firstepLevel)
--			ah->stats.ast_ani_stepdown++;
--		aniState->firstepLevel = level;
--		break;
--	}
--	case ATH9K_ANI_SPUR_IMMUNITY_LEVEL:{
--		static const int cycpwrThr1[] = { 2, 4, 6, 8, 10, 12, 14, 16 };
--		u32 level = param;
--
--		if (level >= ARRAY_SIZE(cycpwrThr1)) {
--			ath_dbg(common, ANI, "level out of range (%u > %zu)\n",
--				level, ARRAY_SIZE(cycpwrThr1));
--			return false;
--		}
--		REG_RMW_FIELD(ah, AR_PHY_TIMING5,
--			      AR_PHY_TIMING5_CYCPWR_THR1,
--			      cycpwrThr1[level]);
--		if (level > aniState->spurImmunityLevel)
--			ah->stats.ast_ani_spurup++;
--		else if (level < aniState->spurImmunityLevel)
--			ah->stats.ast_ani_spurdown++;
--		aniState->spurImmunityLevel = level;
--		break;
--	}
--	case ATH9K_ANI_PRESENT:
--		break;
--	default:
--		ath_dbg(common, ANI, "invalid cmd %u\n", cmd);
--		return false;
--	}
--
--	ath_dbg(common, ANI, "ANI parameters:\n");
--	ath_dbg(common, ANI,
--		"noiseImmunityLevel=%d, spurImmunityLevel=%d, ofdmWeakSigDetectOff=%d\n",
--		aniState->noiseImmunityLevel,
--		aniState->spurImmunityLevel,
--		!aniState->ofdmWeakSigDetectOff);
--	ath_dbg(common, ANI,
--		"cckWeakSigThreshold=%d, firstepLevel=%d, listenTime=%d\n",
--		aniState->cckWeakSigThreshold,
--		aniState->firstepLevel,
--		aniState->listenTime);
--	ath_dbg(common, ANI, "ofdmPhyErrCount=%d, cckPhyErrCount=%d\n\n",
--		aniState->ofdmPhyErrCount,
--		aniState->cckPhyErrCount);
--
--	return true;
--}
--
- static bool ar5008_hw_ani_control_new(struct ath_hw *ah,
- 				      enum ath9k_ani_cmd cmd,
- 				      int param)
-@@ -1206,18 +1071,18 @@ static bool ar5008_hw_ani_control_new(st
- 			REG_CLR_BIT(ah, AR_PHY_SFCORR_LOW,
- 				    AR_PHY_SFCORR_LOW_USE_SELF_CORR_LOW);
- 
--		if (!on != aniState->ofdmWeakSigDetectOff) {
-+		if (on != aniState->ofdmWeakSigDetect) {
- 			ath_dbg(common, ANI,
- 				"** ch %d: ofdm weak signal: %s=>%s\n",
- 				chan->channel,
--				!aniState->ofdmWeakSigDetectOff ?
-+				aniState->ofdmWeakSigDetect ?
- 				"on" : "off",
- 				on ? "on" : "off");
- 			if (on)
- 				ah->stats.ast_ani_ofdmon++;
- 			else
- 				ah->stats.ast_ani_ofdmoff++;
--			aniState->ofdmWeakSigDetectOff = !on;
-+			aniState->ofdmWeakSigDetect = on;
- 		}
- 		break;
- 	}
-@@ -1236,7 +1101,7 @@ static bool ar5008_hw_ani_control_new(st
- 		 * from INI file & cap value
- 		 */
- 		value = firstep_table[level] -
--			firstep_table[ATH9K_ANI_FIRSTEP_LVL_NEW] +
-+			firstep_table[ATH9K_ANI_FIRSTEP_LVL] +
- 			aniState->iniDef.firstep;
- 		if (value < ATH9K_SIG_FIRSTEP_SETTING_MIN)
- 			value = ATH9K_SIG_FIRSTEP_SETTING_MIN;
-@@ -1251,7 +1116,7 @@ static bool ar5008_hw_ani_control_new(st
- 		 * from INI file & cap value
- 		 */
- 		value2 = firstep_table[level] -
--			 firstep_table[ATH9K_ANI_FIRSTEP_LVL_NEW] +
-+			 firstep_table[ATH9K_ANI_FIRSTEP_LVL] +
- 			 aniState->iniDef.firstepLow;
- 		if (value2 < ATH9K_SIG_FIRSTEP_SETTING_MIN)
- 			value2 = ATH9K_SIG_FIRSTEP_SETTING_MIN;
-@@ -1267,7 +1132,7 @@ static bool ar5008_hw_ani_control_new(st
- 				chan->channel,
- 				aniState->firstepLevel,
- 				level,
--				ATH9K_ANI_FIRSTEP_LVL_NEW,
-+				ATH9K_ANI_FIRSTEP_LVL,
- 				value,
- 				aniState->iniDef.firstep);
- 			ath_dbg(common, ANI,
-@@ -1275,7 +1140,7 @@ static bool ar5008_hw_ani_control_new(st
- 				chan->channel,
- 				aniState->firstepLevel,
- 				level,
--				ATH9K_ANI_FIRSTEP_LVL_NEW,
-+				ATH9K_ANI_FIRSTEP_LVL,
- 				value2,
- 				aniState->iniDef.firstepLow);
- 			if (level > aniState->firstepLevel)
-@@ -1300,7 +1165,7 @@ static bool ar5008_hw_ani_control_new(st
- 		 * from INI file & cap value
- 		 */
- 		value = cycpwrThr1_table[level] -
--			cycpwrThr1_table[ATH9K_ANI_SPUR_IMMUNE_LVL_NEW] +
-+			cycpwrThr1_table[ATH9K_ANI_SPUR_IMMUNE_LVL] +
- 			aniState->iniDef.cycpwrThr1;
- 		if (value < ATH9K_SIG_SPUR_IMM_SETTING_MIN)
- 			value = ATH9K_SIG_SPUR_IMM_SETTING_MIN;
-@@ -1316,7 +1181,7 @@ static bool ar5008_hw_ani_control_new(st
- 		 * from INI file & cap value
- 		 */
- 		value2 = cycpwrThr1_table[level] -
--			 cycpwrThr1_table[ATH9K_ANI_SPUR_IMMUNE_LVL_NEW] +
-+			 cycpwrThr1_table[ATH9K_ANI_SPUR_IMMUNE_LVL] +
- 			 aniState->iniDef.cycpwrThr1Ext;
- 		if (value2 < ATH9K_SIG_SPUR_IMM_SETTING_MIN)
- 			value2 = ATH9K_SIG_SPUR_IMM_SETTING_MIN;
-@@ -1331,7 +1196,7 @@ static bool ar5008_hw_ani_control_new(st
- 				chan->channel,
- 				aniState->spurImmunityLevel,
- 				level,
--				ATH9K_ANI_SPUR_IMMUNE_LVL_NEW,
-+				ATH9K_ANI_SPUR_IMMUNE_LVL,
- 				value,
- 				aniState->iniDef.cycpwrThr1);
- 			ath_dbg(common, ANI,
-@@ -1339,7 +1204,7 @@ static bool ar5008_hw_ani_control_new(st
- 				chan->channel,
- 				aniState->spurImmunityLevel,
- 				level,
--				ATH9K_ANI_SPUR_IMMUNE_LVL_NEW,
-+				ATH9K_ANI_SPUR_IMMUNE_LVL,
- 				value2,
- 				aniState->iniDef.cycpwrThr1Ext);
- 			if (level > aniState->spurImmunityLevel)
-@@ -1367,7 +1232,7 @@ static bool ar5008_hw_ani_control_new(st
- 	ath_dbg(common, ANI,
- 		"ANI parameters: SI=%d, ofdmWS=%s FS=%d MRCcck=%s listenTime=%d ofdmErrs=%d cckErrs=%d\n",
- 		aniState->spurImmunityLevel,
--		!aniState->ofdmWeakSigDetectOff ? "on" : "off",
-+		aniState->ofdmWeakSigDetect ? "on" : "off",
- 		aniState->firstepLevel,
- 		!aniState->mrcCCKOff ? "on" : "off",
- 		aniState->listenTime,
-@@ -1454,9 +1319,9 @@ static void ar5008_hw_ani_cache_ini_regs
- 					       AR_PHY_EXT_TIMING5_CYCPWR_THR1);
- 
- 	/* these levels just got reset to defaults by the INI */
--	aniState->spurImmunityLevel = ATH9K_ANI_SPUR_IMMUNE_LVL_NEW;
--	aniState->firstepLevel = ATH9K_ANI_FIRSTEP_LVL_NEW;
--	aniState->ofdmWeakSigDetectOff = !ATH9K_ANI_USE_OFDM_WEAK_SIG;
-+	aniState->spurImmunityLevel = ATH9K_ANI_SPUR_IMMUNE_LVL;
-+	aniState->firstepLevel = ATH9K_ANI_FIRSTEP_LVL;
-+	aniState->ofdmWeakSigDetect = ATH9K_ANI_USE_OFDM_WEAK_SIG;
- 	aniState->mrcCCKOff = true; /* not available on pre AR9003 */
- }
- 
-@@ -1545,11 +1410,8 @@ void ar5008_hw_attach_phy_ops(struct ath
- 	priv_ops->do_getnf = ar5008_hw_do_getnf;
- 	priv_ops->set_radar_params = ar5008_hw_set_radar_params;
- 
--	if (modparam_force_new_ani) {
--		priv_ops->ani_control = ar5008_hw_ani_control_new;
--		priv_ops->ani_cache_ini_regs = ar5008_hw_ani_cache_ini_regs;
--	} else
--		priv_ops->ani_control = ar5008_hw_ani_control_old;
-+	priv_ops->ani_control = ar5008_hw_ani_control_new;
-+	priv_ops->ani_cache_ini_regs = ar5008_hw_ani_cache_ini_regs;
- 
- 	if (AR_SREV_9100(ah) || AR_SREV_9160_10_OR_LATER(ah))
- 		priv_ops->compute_pll_control = ar9160_hw_compute_pll_control;
---- a/drivers/net/wireless/ath/ath9k/ar9002_hw.c
-+++ b/drivers/net/wireless/ath/ath9k/ar9002_hw.c
-@@ -21,10 +21,6 @@
- #include "ar9002_initvals.h"
- #include "ar9002_phy.h"
- 
--int modparam_force_new_ani;
--module_param_named(force_new_ani, modparam_force_new_ani, int, 0444);
--MODULE_PARM_DESC(force_new_ani, "Force new ANI for AR5008, AR9001, AR9002");
--
- /* General hardware code for the A5008/AR9001/AR9002 hadware families */
- 
- static void ar9002_hw_init_mode_regs(struct ath_hw *ah)
---- a/drivers/net/wireless/ath/ath9k/ar9003_phy.c
-+++ b/drivers/net/wireless/ath/ath9k/ar9003_phy.c
-@@ -825,18 +825,18 @@ static bool ar9003_hw_ani_control(struct
- 			REG_CLR_BIT(ah, AR_PHY_SFCORR_LOW,
- 				    AR_PHY_SFCORR_LOW_USE_SELF_CORR_LOW);
- 
--		if (!on != aniState->ofdmWeakSigDetectOff) {
-+		if (on != aniState->ofdmWeakSigDetect) {
- 			ath_dbg(common, ANI,
- 				"** ch %d: ofdm weak signal: %s=>%s\n",
- 				chan->channel,
--				!aniState->ofdmWeakSigDetectOff ?
-+				aniState->ofdmWeakSigDetect ?
- 				"on" : "off",
- 				on ? "on" : "off");
- 			if (on)
- 				ah->stats.ast_ani_ofdmon++;
- 			else
- 				ah->stats.ast_ani_ofdmoff++;
--			aniState->ofdmWeakSigDetectOff = !on;
-+			aniState->ofdmWeakSigDetect = on;
- 		}
- 		break;
- 	}
-@@ -855,7 +855,7 @@ static bool ar9003_hw_ani_control(struct
- 		 * from INI file & cap value
- 		 */
- 		value = firstep_table[level] -
--			firstep_table[ATH9K_ANI_FIRSTEP_LVL_NEW] +
-+			firstep_table[ATH9K_ANI_FIRSTEP_LVL] +
- 			aniState->iniDef.firstep;
- 		if (value < ATH9K_SIG_FIRSTEP_SETTING_MIN)
- 			value = ATH9K_SIG_FIRSTEP_SETTING_MIN;
-@@ -870,7 +870,7 @@ static bool ar9003_hw_ani_control(struct
- 		 * from INI file & cap value
- 		 */
- 		value2 = firstep_table[level] -
--			 firstep_table[ATH9K_ANI_FIRSTEP_LVL_NEW] +
-+			 firstep_table[ATH9K_ANI_FIRSTEP_LVL] +
- 			 aniState->iniDef.firstepLow;
- 		if (value2 < ATH9K_SIG_FIRSTEP_SETTING_MIN)
- 			value2 = ATH9K_SIG_FIRSTEP_SETTING_MIN;
-@@ -886,7 +886,7 @@ static bool ar9003_hw_ani_control(struct
- 				chan->channel,
- 				aniState->firstepLevel,
- 				level,
--				ATH9K_ANI_FIRSTEP_LVL_NEW,
-+				ATH9K_ANI_FIRSTEP_LVL,
- 				value,
- 				aniState->iniDef.firstep);
- 			ath_dbg(common, ANI,
-@@ -894,7 +894,7 @@ static bool ar9003_hw_ani_control(struct
- 				chan->channel,
- 				aniState->firstepLevel,
- 				level,
--				ATH9K_ANI_FIRSTEP_LVL_NEW,
-+				ATH9K_ANI_FIRSTEP_LVL,
- 				value2,
- 				aniState->iniDef.firstepLow);
- 			if (level > aniState->firstepLevel)
-@@ -919,7 +919,7 @@ static bool ar9003_hw_ani_control(struct
- 		 * from INI file & cap value
- 		 */
- 		value = cycpwrThr1_table[level] -
--			cycpwrThr1_table[ATH9K_ANI_SPUR_IMMUNE_LVL_NEW] +
-+			cycpwrThr1_table[ATH9K_ANI_SPUR_IMMUNE_LVL] +
- 			aniState->iniDef.cycpwrThr1;
- 		if (value < ATH9K_SIG_SPUR_IMM_SETTING_MIN)
- 			value = ATH9K_SIG_SPUR_IMM_SETTING_MIN;
-@@ -935,7 +935,7 @@ static bool ar9003_hw_ani_control(struct
- 		 * from INI file & cap value
- 		 */
- 		value2 = cycpwrThr1_table[level] -
--			 cycpwrThr1_table[ATH9K_ANI_SPUR_IMMUNE_LVL_NEW] +
-+			 cycpwrThr1_table[ATH9K_ANI_SPUR_IMMUNE_LVL] +
- 			 aniState->iniDef.cycpwrThr1Ext;
- 		if (value2 < ATH9K_SIG_SPUR_IMM_SETTING_MIN)
- 			value2 = ATH9K_SIG_SPUR_IMM_SETTING_MIN;
-@@ -950,7 +950,7 @@ static bool ar9003_hw_ani_control(struct
- 				chan->channel,
- 				aniState->spurImmunityLevel,
- 				level,
--				ATH9K_ANI_SPUR_IMMUNE_LVL_NEW,
-+				ATH9K_ANI_SPUR_IMMUNE_LVL,
- 				value,
- 				aniState->iniDef.cycpwrThr1);
- 			ath_dbg(common, ANI,
-@@ -958,7 +958,7 @@ static bool ar9003_hw_ani_control(struct
- 				chan->channel,
- 				aniState->spurImmunityLevel,
- 				level,
--				ATH9K_ANI_SPUR_IMMUNE_LVL_NEW,
-+				ATH9K_ANI_SPUR_IMMUNE_LVL,
- 				value2,
- 				aniState->iniDef.cycpwrThr1Ext);
- 			if (level > aniState->spurImmunityLevel)
-@@ -1002,7 +1002,7 @@ static bool ar9003_hw_ani_control(struct
- 	ath_dbg(common, ANI,
- 		"ANI parameters: SI=%d, ofdmWS=%s FS=%d MRCcck=%s listenTime=%d ofdmErrs=%d cckErrs=%d\n",
- 		aniState->spurImmunityLevel,
--		!aniState->ofdmWeakSigDetectOff ? "on" : "off",
-+		aniState->ofdmWeakSigDetect ? "on" : "off",
- 		aniState->firstepLevel,
- 		!aniState->mrcCCKOff ? "on" : "off",
- 		aniState->listenTime,
-@@ -1111,9 +1111,9 @@ static void ar9003_hw_ani_cache_ini_regs
- 					       AR_PHY_EXT_CYCPWR_THR1);
- 
- 	/* these levels just got reset to defaults by the INI */
--	aniState->spurImmunityLevel = ATH9K_ANI_SPUR_IMMUNE_LVL_NEW;
--	aniState->firstepLevel = ATH9K_ANI_FIRSTEP_LVL_NEW;
--	aniState->ofdmWeakSigDetectOff = !ATH9K_ANI_USE_OFDM_WEAK_SIG;
-+	aniState->spurImmunityLevel = ATH9K_ANI_SPUR_IMMUNE_LVL;
-+	aniState->firstepLevel = ATH9K_ANI_FIRSTEP_LVL;
-+	aniState->ofdmWeakSigDetect = ATH9K_ANI_USE_OFDM_WEAK_SIG;
- 	aniState->mrcCCKOff = !ATH9K_ANI_ENABLE_MRC_CCK;
- }
- 
---- a/drivers/net/wireless/ath/ath9k/debug.c
-+++ b/drivers/net/wireless/ath/ath9k/debug.c
-@@ -348,8 +348,6 @@ void ath_debug_stat_interrupt(struct ath
- 		sc->debug.stats.istats.txok++;
- 	if (status & ATH9K_INT_TXURN)
- 		sc->debug.stats.istats.txurn++;
--	if (status & ATH9K_INT_MIB)
--		sc->debug.stats.istats.mib++;
- 	if (status & ATH9K_INT_RXPHY)
- 		sc->debug.stats.istats.rxphyerr++;
- 	if (status & ATH9K_INT_RXKCM)
---- a/drivers/net/wireless/ath/ath9k/hw.h
-+++ b/drivers/net/wireless/ath/ath9k/hw.h
-@@ -1019,16 +1019,8 @@ void ar9002_hw_attach_ops(struct ath_hw 
- void ar9003_hw_attach_ops(struct ath_hw *ah);
- 
- void ar9002_hw_load_ani_reg(struct ath_hw *ah, struct ath9k_channel *chan);
--/*
-- * ANI work can be shared between all families but a next
-- * generation implementation of ANI will be used only for AR9003 only
-- * for now as the other families still need to be tested with the same
-- * next generation ANI. Feel free to start testing it though for the
-- * older families (AR5008, AR9001, AR9002) by using modparam_force_new_ani.
-- */
--extern int modparam_force_new_ani;
-+
- void ath9k_ani_reset(struct ath_hw *ah, bool is_scanning);
--void ath9k_hw_proc_mib_event(struct ath_hw *ah);
- void ath9k_hw_ani_monitor(struct ath_hw *ah, struct ath9k_channel *chan);
- 
- #ifdef CONFIG_ATH9K_BTCOEX_SUPPORT
---- a/drivers/net/wireless/ath/ath9k/main.c
-+++ b/drivers/net/wireless/ath/ath9k/main.c
-@@ -19,7 +19,7 @@
- #include "ath9k.h"
- #include "btcoex.h"
- 
--static u8 parse_mpdudensity(u8 mpdudensity)
-+u8 ath9k_parse_mpdudensity(u8 mpdudensity)
- {
- 	/*
- 	 * 802.11n D2.0 defined values for "Minimum MPDU Start Spacing":
-@@ -320,6 +320,7 @@ static void ath_node_attach(struct ath_s
- 			    struct ieee80211_vif *vif)
- {
- 	struct ath_node *an;
-+	u8 density;
- 	an = (struct ath_node *)sta->drv_priv;
- 
- #ifdef CONFIG_ATH9K_DEBUGFS
-@@ -334,7 +335,8 @@ static void ath_node_attach(struct ath_s
- 		ath_tx_node_init(sc, an);
- 		an->maxampdu = 1 << (IEEE80211_HT_MAX_AMPDU_FACTOR +
- 				     sta->ht_cap.ampdu_factor);
--		an->mpdudensity = parse_mpdudensity(sta->ht_cap.ampdu_density);
-+		density = ath9k_parse_mpdudensity(sta->ht_cap.ampdu_density);
-+		an->mpdudensity = density;
- 	}
- }
- 
-@@ -516,24 +518,6 @@ irqreturn_t ath_isr(int irq, void *dev)
- 		ath9k_hw_set_interrupts(ah);
- 	}
- 
--	if (status & ATH9K_INT_MIB) {
--		/*
--		 * Disable interrupts until we service the MIB
--		 * interrupt; otherwise it will continue to
--		 * fire.
--		 */
--		ath9k_hw_disable_interrupts(ah);
--		/*
--		 * Let the hal handle the event. We assume
--		 * it will clear whatever condition caused
--		 * the interrupt.
--		 */
--		spin_lock(&common->cc_lock);
--		ath9k_hw_proc_mib_event(ah);
--		spin_unlock(&common->cc_lock);
--		ath9k_hw_enable_interrupts(ah);
--	}
--
- 	if (!(ah->caps.hw_caps & ATH9K_HW_CAP_AUTOSLEEP))
- 		if (status & ATH9K_INT_TIM_TIMER) {
- 			if (ATH_DBG_WARN_ON_ONCE(sc->ps_idle))
-@@ -959,14 +943,10 @@ static void ath9k_calculate_summary_stat
- 	/*
- 	 * Enable MIB interrupts when there are hardware phy counters.
- 	 */
--	if ((iter_data.nstations + iter_data.nadhocs + iter_data.nmeshes) > 0) {
--		if (ah->config.enable_ani)
--			ah->imask |= ATH9K_INT_MIB;
-+	if ((iter_data.nstations + iter_data.nadhocs + iter_data.nmeshes) > 0)
- 		ah->imask |= ATH9K_INT_TSFOOR;
--	} else {
--		ah->imask &= ~ATH9K_INT_MIB;
-+	else
- 		ah->imask &= ~ATH9K_INT_TSFOOR;
--	}
- 
- 	ath9k_hw_set_interrupts(ah);
- 
 --- a/net/mac80211/agg-rx.c
 +++ b/net/mac80211/agg-rx.c
-@@ -201,6 +201,8 @@ static void ieee80211_send_addba_resp(st
+@@ -203,6 +203,8 @@ static void ieee80211_send_addba_resp(st
  		memcpy(mgmt->bssid, sdata->u.mgd.bssid, ETH_ALEN);
  	else if (sdata->vif.type == NL80211_IFTYPE_ADHOC)
  		memcpy(mgmt->bssid, sdata->u.ibss.bssid, ETH_ALEN);
@@ -1263,7 +21,7 @@
  		memcpy(mgmt->bssid, sdata->vif.addr, ETH_ALEN);
  	else if (sdata->vif.type == NL80211_IFTYPE_STATION)
  		memcpy(mgmt->bssid, sdata->u.mgd.bssid, ETH_ALEN);
-@@ -456,6 +457,7 @@ int ieee80211_start_tx_ba_session(struct
+@@ -520,6 +521,7 @@ int ieee80211_start_tx_ba_session(struct
  	    sdata->vif.type != NL80211_IFTYPE_MESH_POINT &&
  	    sdata->vif.type != NL80211_IFTYPE_AP_VLAN &&
  	    sdata->vif.type != NL80211_IFTYPE_AP &&
@@ -1273,7 +31,7 @@
  
 --- a/net/mac80211/debugfs_sta.c
 +++ b/net/mac80211/debugfs_sta.c
-@@ -63,11 +63,11 @@ static ssize_t sta_flags_read(struct fil
+@@ -65,11 +65,11 @@ static ssize_t sta_flags_read(struct fil
  	test_sta_flag(sta, WLAN_STA_##flg) ? #flg "\n" : ""
  
  	int res = scnprintf(buf, sizeof(buf),
@@ -1289,15 +47,15 @@
  			    TEST(TDLS_PEER_AUTH), TEST(4ADDR_EVENT),
 --- a/net/mac80211/iface.c
 +++ b/net/mac80211/iface.c
-@@ -284,7 +284,6 @@ static int ieee80211_do_open(struct net_
- {
- 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+@@ -501,7 +501,6 @@ int ieee80211_do_open(struct wireless_de
+ 	struct ieee80211_sub_if_data *sdata = IEEE80211_WDEV_TO_SUB_IF(wdev);
+ 	struct net_device *dev = wdev->netdev;
  	struct ieee80211_local *local = sdata->local;
 -	struct sta_info *sta;
  	u32 changed = 0;
  	int res;
  	u32 hw_reconf_flags = 0;
-@@ -430,28 +429,6 @@ static int ieee80211_do_open(struct net_
+@@ -658,30 +657,8 @@ int ieee80211_do_open(struct wireless_de
  
  	set_bit(SDATA_STATE_RUNNING, &sdata->state);
  
@@ -1321,21 +79,15 @@
 -		}
 -
 -		rate_control_rate_init(sta);
+-		netif_carrier_on(dev);
+-	} else if (sdata->vif.type == NL80211_IFTYPE_P2P_DEVICE) {
++	if (sdata->vif.type == NL80211_IFTYPE_P2P_DEVICE)
+ 		rcu_assign_pointer(local->p2p_sdata, sdata);
 -	}
--
+ 
  	/*
  	 * set_multicast_list will be invoked by the networking core
- 	 * which will check whether any increments here were done in
-@@ -639,6 +616,8 @@ static void ieee80211_do_stop(struct iee
- 		ieee80211_configure_filter(local);
- 		break;
- 	default:
-+		flush_work(&local->hw_roc_start);
-+		flush_work(&local->hw_roc_done);
- 		flush_work(&sdata->work);
- 		/*
- 		 * When we get here, the interface is marked down.
-@@ -845,6 +824,72 @@ static void ieee80211_if_setup(struct ne
+@@ -1066,6 +1043,72 @@ static void ieee80211_if_setup(struct ne
  	dev->destructor = free_netdev;
  }
  
@@ -1408,7 +160,7 @@
  static void ieee80211_iface_work(struct work_struct *work)
  {
  	struct ieee80211_sub_if_data *sdata =
-@@ -949,6 +994,9 @@ static void ieee80211_iface_work(struct 
+@@ -1170,6 +1213,9 @@ static void ieee80211_iface_work(struct 
  				break;
  			ieee80211_mesh_rx_queued_mgmt(sdata, skb);
  			break;
@@ -1420,7 +172,7 @@
  			break;
 --- a/net/mac80211/rx.c
 +++ b/net/mac80211/rx.c
-@@ -2281,6 +2281,7 @@ ieee80211_rx_h_action(struct ieee80211_r
+@@ -2350,6 +2350,7 @@ ieee80211_rx_h_action(struct ieee80211_r
  		    sdata->vif.type != NL80211_IFTYPE_MESH_POINT &&
  		    sdata->vif.type != NL80211_IFTYPE_AP_VLAN &&
  		    sdata->vif.type != NL80211_IFTYPE_AP &&
@@ -1428,7 +180,7 @@
  		    sdata->vif.type != NL80211_IFTYPE_ADHOC)
  			break;
  
-@@ -2495,14 +2496,15 @@ ieee80211_rx_h_mgmt(struct ieee80211_rx_
+@@ -2655,14 +2656,15 @@ ieee80211_rx_h_mgmt(struct ieee80211_rx_
  
  	if (!ieee80211_vif_is_mesh(&sdata->vif) &&
  	    sdata->vif.type != NL80211_IFTYPE_ADHOC &&
@@ -1446,7 +198,7 @@
  		break;
  	case cpu_to_le16(IEEE80211_STYPE_ASSOC_RESP):
  	case cpu_to_le16(IEEE80211_STYPE_REASSOC_RESP):
-@@ -2833,10 +2835,16 @@ static int prepare_for_handlers(struct i
+@@ -2987,10 +2989,16 @@ static int prepare_for_handlers(struct i
  		}
  		break;
  	case NL80211_IFTYPE_WDS:
@@ -1463,8 +215,8 @@
 +			return 0;
 +
  		break;
- 	default:
- 		/* should never get here */
+ 	case NL80211_IFTYPE_P2P_DEVICE:
+ 		if (!ieee80211_is_public_action(hdr, skb->len) &&
 --- a/net/mac80211/sta_info.h
 +++ b/net/mac80211/sta_info.h
 @@ -32,7 +32,6 @@
@@ -1485,241 +237,753 @@
  	WLAN_STA_BLOCK_BA,
 --- a/drivers/net/wireless/ath/ath9k/ath9k.h
 +++ b/drivers/net/wireless/ath/ath9k/ath9k.h
-@@ -214,6 +214,7 @@ struct ath_frame_info {
- 	enum ath9k_key_type keytype;
- 	u8 keyix;
- 	u8 retries;
-+	u8 rtscts_rate;
+@@ -324,7 +324,6 @@ struct ath_rx {
+ 
+ int ath_startrecv(struct ath_softc *sc);
+ bool ath_stoprecv(struct ath_softc *sc);
+-void ath_flushrecv(struct ath_softc *sc);
+ u32 ath_calcrxfilter(struct ath_softc *sc);
+ int ath_rx_init(struct ath_softc *sc, int nbufs);
+ void ath_rx_cleanup(struct ath_softc *sc);
+@@ -641,7 +640,6 @@ void ath_ant_comb_update(struct ath_soft
+ enum sc_op_flags {
+ 	SC_OP_INVALID,
+ 	SC_OP_BEACONS,
+-	SC_OP_RXFLUSH,
+ 	SC_OP_ANI_RUN,
+ 	SC_OP_PRIM_STA_VIF,
+ 	SC_OP_HW_RESET,
+--- a/drivers/net/wireless/ath/ath9k/beacon.c
++++ b/drivers/net/wireless/ath/ath9k/beacon.c
+@@ -147,6 +147,7 @@ static struct ath_buf *ath9k_beacon_gene
+ 				 skb->len, DMA_TO_DEVICE);
+ 		dev_kfree_skb_any(skb);
+ 		bf->bf_buf_addr = 0;
++		bf->bf_mpdu = NULL;
+ 	}
+ 
+ 	skb = ieee80211_beacon_get(hw, vif);
+@@ -359,7 +360,6 @@ void ath9k_beacon_tasklet(unsigned long 
+ 		return;
+ 
+ 	bf = ath9k_beacon_generate(sc->hw, vif);
+-	WARN_ON(!bf);
+ 
+ 	if (sc->beacon.bmisscnt != 0) {
+ 		ath_dbg(common, BSTUCK, "resume beacon xmit after %u misses\n",
+--- a/drivers/net/wireless/ath/ath9k/debug.c
++++ b/drivers/net/wireless/ath/ath9k/debug.c
+@@ -861,7 +861,6 @@ static ssize_t read_file_recv(struct fil
+ 	RXS_ERR("RX-LENGTH-ERR", rx_len_err);
+ 	RXS_ERR("RX-OOM-ERR", rx_oom_err);
+ 	RXS_ERR("RX-RATE-ERR", rx_rate_err);
+-	RXS_ERR("RX-DROP-RXFLUSH", rx_drop_rxflush);
+ 	RXS_ERR("RX-TOO-MANY-FRAGS", rx_too_many_frags_err);
+ 
+ 	PHY_ERR("UNDERRUN ERR", ATH9K_PHYERR_UNDERRUN);
+--- a/drivers/net/wireless/ath/ath9k/debug.h
++++ b/drivers/net/wireless/ath/ath9k/debug.h
+@@ -216,7 +216,6 @@ struct ath_tx_stats {
+  * @rx_oom_err:  No. of frames dropped due to OOM issues.
+  * @rx_rate_err:  No. of frames dropped due to rate errors.
+  * @rx_too_many_frags_err:  Frames dropped due to too-many-frags received.
+- * @rx_drop_rxflush: No. of frames dropped due to RX-FLUSH.
+  * @rx_beacons:  No. of beacons received.
+  * @rx_frags:  No. of rx-fragements received.
+  */
+@@ -235,7 +234,6 @@ struct ath_rx_stats {
+ 	u32 rx_oom_err;
+ 	u32 rx_rate_err;
+ 	u32 rx_too_many_frags_err;
+-	u32 rx_drop_rxflush;
+ 	u32 rx_beacons;
+ 	u32 rx_frags;
  };
- 
- struct ath_buf_state {
-@@ -721,6 +722,7 @@ extern int ath9k_modparam_nohwcrypt;
- extern int led_blink;
- extern bool is_ath9k_unloaded;
- 
-+u8 ath9k_parse_mpdudensity(u8 mpdudensity);
- irqreturn_t ath_isr(int irq, void *dev);
- int ath9k_init_device(u16 devid, struct ath_softc *sc,
- 		    const struct ath_bus_ops *bus_ops);
---- a/drivers/net/wireless/ath/ath9k/xmit.c
-+++ b/drivers/net/wireless/ath/ath9k/xmit.c
-@@ -938,6 +938,7 @@ static void ath_buf_set_rate(struct ath_
- 	struct ieee80211_tx_rate *rates;
- 	const struct ieee80211_rate *rate;
- 	struct ieee80211_hdr *hdr;
-+	struct ath_frame_info *fi = get_frame_info(bf->bf_mpdu);
- 	int i;
- 	u8 rix = 0;
- 
-@@ -948,18 +949,7 @@ static void ath_buf_set_rate(struct ath_
- 
- 	/* set dur_update_en for l-sig computation except for PS-Poll frames */
- 	info->dur_update = !ieee80211_is_pspoll(hdr->frame_control);
--
--	/*
--	 * We check if Short Preamble is needed for the CTS rate by
--	 * checking the BSS's global flag.
--	 * But for the rate series, IEEE80211_TX_RC_USE_SHORT_PREAMBLE is used.
--	 */
--	rate = ieee80211_get_rts_cts_rate(sc->hw, tx_info);
--	info->rtscts_rate = rate->hw_value;
--
--	if (tx_info->control.vif &&
--	    tx_info->control.vif->bss_conf.use_short_preamble)
--		info->rtscts_rate |= rate->hw_value_short;
-+	info->rtscts_rate = fi->rtscts_rate;
- 
- 	for (i = 0; i < 4; i++) {
- 		bool is_40, is_sgi, is_sp;
-@@ -1001,13 +991,13 @@ static void ath_buf_set_rate(struct ath_
- 		}
- 
- 		/* legacy rates */
-+		rate = &sc->sbands[tx_info->band].bitrates[rates[i].idx];
- 		if ((tx_info->band == IEEE80211_BAND_2GHZ) &&
- 		    !(rate->flags & IEEE80211_RATE_ERP_G))
- 			phy = WLAN_RC_PHY_CCK;
- 		else
- 			phy = WLAN_RC_PHY_OFDM;
- 
--		rate = &sc->sbands[tx_info->band].bitrates[rates[i].idx];
- 		info->rates[i].Rate = rate->hw_value;
- 		if (rate->hw_value_short) {
- 			if (rates[i].flags & IEEE80211_TX_RC_USE_SHORT_PREAMBLE)
-@@ -1175,6 +1165,7 @@ int ath_tx_aggr_start(struct ath_softc *
- {
- 	struct ath_atx_tid *txtid;
- 	struct ath_node *an;
-+	u8 density;
- 
- 	an = (struct ath_node *)sta->drv_priv;
- 	txtid = ATH_AN_2_TID(an, tid);
-@@ -1182,6 +1173,17 @@ int ath_tx_aggr_start(struct ath_softc *
- 	if (txtid->state & (AGGR_CLEANUP | AGGR_ADDBA_COMPLETE))
- 		return -EAGAIN;
- 
-+	/* update ampdu factor/density, they may have changed. This may happen
-+	 * in HT IBSS when a beacon with HT-info is received after the station
-+	 * has already been added.
-+	 */
-+	if (sc->sc_ah->caps.hw_caps & ATH9K_HW_CAP_HT) {
-+		an->maxampdu = 1 << (IEEE80211_HT_MAX_AMPDU_FACTOR +
-+				     sta->ht_cap.ampdu_factor);
-+		density = ath9k_parse_mpdudensity(sta->ht_cap.ampdu_density);
-+		an->mpdudensity = density;
-+	}
-+
- 	txtid->state |= AGGR_ADDBA_PROGRESS;
- 	txtid->paused = true;
- 	*ssn = txtid->seq_start = txtid->seq_next;
-@@ -1776,10 +1778,22 @@ static void setup_frame_info(struct ieee
- 	struct ieee80211_sta *sta = tx_info->control.sta;
- 	struct ieee80211_key_conf *hw_key = tx_info->control.hw_key;
- 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
-+	const struct ieee80211_rate *rate;
- 	struct ath_frame_info *fi = get_frame_info(skb);
- 	struct ath_node *an = NULL;
- 	enum ath9k_key_type keytype;
-+	bool short_preamble = false;
-+
-+	/*
-+	 * We check if Short Preamble is needed for the CTS rate by
-+	 * checking the BSS's global flag.
-+	 * But for the rate series, IEEE80211_TX_RC_USE_SHORT_PREAMBLE is used.
-+	 */
-+	if (tx_info->control.vif &&
-+	    tx_info->control.vif->bss_conf.use_short_preamble)
-+		short_preamble = true;
- 
-+	rate = ieee80211_get_rts_cts_rate(hw, tx_info);
- 	keytype = ath9k_cmn_get_hw_crypto_keytype(skb);
- 
- 	if (sta)
-@@ -1794,6 +1808,9 @@ static void setup_frame_info(struct ieee
- 		fi->keyix = ATH9K_TXKEYIX_INVALID;
- 	fi->keytype = keytype;
- 	fi->framelen = framelen;
-+	fi->rtscts_rate = rate->hw_value;
-+	if (short_preamble)
-+		fi->rtscts_rate |= rate->hw_value_short;
+--- a/drivers/net/wireless/ath/ath9k/main.c
++++ b/drivers/net/wireless/ath/ath9k/main.c
+@@ -182,7 +182,7 @@ static void ath_restart_work(struct ath_
+ 	ath_start_ani(sc);
  }
  
- u8 ath_txchainmask_reduction(struct ath_softc *sc, u8 chainmask, u32 rate)
---- a/net/wireless/nl80211.c
-+++ b/net/wireless/nl80211.c
-@@ -2246,6 +2246,33 @@ static int nl80211_parse_beacon(struct g
+-static bool ath_prepare_reset(struct ath_softc *sc, bool retry_tx, bool flush)
++static bool ath_prepare_reset(struct ath_softc *sc, bool retry_tx)
+ {
+ 	struct ath_hw *ah = sc->sc_ah;
+ 	bool ret = true;
+@@ -196,19 +196,15 @@ static bool ath_prepare_reset(struct ath
+ 	ath9k_debug_samp_bb_mac(sc);
+ 	ath9k_hw_disable_interrupts(ah);
+ 
++	tasklet_disable(&sc->intr_tq);
++
+ 	if (!ath_stoprecv(sc))
+ 		ret = false;
+ 
+ 	if (!ath_drain_all_txq(sc, retry_tx))
+ 		ret = false;
+ 
+-	if (!flush) {
+-		if (ah->caps.hw_caps & ATH9K_HW_CAP_EDMA)
+-			ath_rx_tasklet(sc, 1, true);
+-		ath_rx_tasklet(sc, 1, false);
+-	} else {
+-		ath_flushrecv(sc);
+-	}
++	tasklet_enable(&sc->intr_tq);
+ 
+ 	return ret;
+ }
+@@ -262,7 +258,6 @@ static int ath_reset_internal(struct ath
+ 	struct ath_common *common = ath9k_hw_common(ah);
+ 	struct ath9k_hw_cal_data *caldata = NULL;
+ 	bool fastcc = true;
+-	bool flush = false;
+ 	int r;
+ 
+ 	__ath_cancel_work(sc);
+@@ -276,11 +271,10 @@ static int ath_reset_internal(struct ath
+ 
+ 	if (!hchan) {
+ 		fastcc = false;
+-		flush = true;
+ 		hchan = ah->curchan;
+ 	}
+ 
+-	if (!ath_prepare_reset(sc, retry_tx, flush))
++	if (!ath_prepare_reset(sc, retry_tx))
+ 		fastcc = false;
+ 
+ 	ath_dbg(common, CONFIG, "Reset to %u MHz, HT40: %d fastcc: %d\n",
+@@ -804,7 +798,7 @@ static void ath9k_stop(struct ieee80211_
+ 		ath9k_hw_cfg_gpio_input(ah, ah->led_pin);
+ 	}
+ 
+-	ath_prepare_reset(sc, false, true);
++	ath_prepare_reset(sc, false);
+ 
+ 	if (sc->rx.frag) {
+ 		dev_kfree_skb_any(sc->rx.frag);
+--- a/drivers/net/wireless/ath/ath9k/recv.c
++++ b/drivers/net/wireless/ath/ath9k/recv.c
+@@ -280,7 +280,6 @@ int ath_rx_init(struct ath_softc *sc, in
+ 
+ 	spin_lock_init(&sc->sc_pcu_lock);
+ 	spin_lock_init(&sc->rx.rxbuflock);
+-	clear_bit(SC_OP_RXFLUSH, &sc->sc_flags);
+ 
+ 	common->rx_bufsize = IEEE80211_MAX_MPDU_LEN / 2 +
+ 			     sc->sc_ah->caps.rx_status_len;
+@@ -464,6 +463,13 @@ start_recv:
  	return 0;
  }
  
-+static bool nl80211_get_ap_channel(struct cfg80211_registered_device *rdev,
-+				   struct cfg80211_ap_settings *params)
++static void ath_flushrecv(struct ath_softc *sc)
 +{
-+	struct wireless_dev *wdev;
-+	bool ret = false;
-+
-+	mutex_lock(&rdev->devlist_mtx);
-+
-+	list_for_each_entry(wdev, &rdev->netdev_list, list) {
-+		if (wdev->iftype != NL80211_IFTYPE_AP &&
-+		    wdev->iftype != NL80211_IFTYPE_P2P_GO)
-+			continue;
-+
-+		if (!wdev->preset_chan)
-+			continue;
-+
-+		params->channel = wdev->preset_chan;
-+		params->channel_type = wdev->preset_chantype;
-+		ret = true;
-+		break;
-+	}
-+
-+	mutex_unlock(&rdev->devlist_mtx);
-+
-+	return ret;
++	if (sc->sc_ah->caps.hw_caps & ATH9K_HW_CAP_EDMA)
++		ath_rx_tasklet(sc, 1, true);
++	ath_rx_tasklet(sc, 1, false);
 +}
 +
- static int nl80211_start_ap(struct sk_buff *skb, struct genl_info *info)
+ bool ath_stoprecv(struct ath_softc *sc)
  {
- 	struct cfg80211_registered_device *rdev = info->user_ptr[0];
-@@ -2348,7 +2375,7 @@ static int nl80211_start_ap(struct sk_bu
- 	} else if (wdev->preset_chan) {
- 		params.channel = wdev->preset_chan;
- 		params.channel_type = wdev->preset_chantype;
--	} else
-+	} else if (!nl80211_get_ap_channel(rdev, &params))
- 		return -EINVAL;
+ 	struct ath_hw *ah = sc->sc_ah;
+@@ -474,6 +480,8 @@ bool ath_stoprecv(struct ath_softc *sc)
+ 	ath9k_hw_setrxfilter(ah, 0);
+ 	stopped = ath9k_hw_stopdmarecv(ah, &reset);
  
- 	if (!cfg80211_can_beacon_sec_chan(&rdev->wiphy, params.channel,
-@@ -2356,8 +2383,11 @@ static int nl80211_start_ap(struct sk_bu
- 		return -EINVAL;
- 
- 	err = rdev->ops->start_ap(&rdev->wiphy, dev, &params);
--	if (!err)
-+	if (!err) {
-+		wdev->preset_chan = params.channel;
-+		wdev->preset_chantype = params.channel_type;
- 		wdev->beacon_interval = params.beacon_interval;
-+	}
- 	return err;
++	ath_flushrecv(sc);
++
+ 	if (sc->sc_ah->caps.hw_caps & ATH9K_HW_CAP_EDMA)
+ 		ath_edma_stop_recv(sc);
+ 	else
+@@ -490,15 +498,6 @@ bool ath_stoprecv(struct ath_softc *sc)
+ 	return stopped && !reset;
  }
  
---- a/drivers/net/wireless/ath/ath9k/link.c
-+++ b/drivers/net/wireless/ath/ath9k/link.c
-@@ -407,6 +407,7 @@ void ath_ani_calibrate(unsigned long dat
- 		longcal ? "long" : "", shortcal ? "short" : "",
- 		aniflag ? "ani" : "", common->ani.caldone ? "true" : "false");
+-void ath_flushrecv(struct ath_softc *sc)
+-{
+-	set_bit(SC_OP_RXFLUSH, &sc->sc_flags);
+-	if (sc->sc_ah->caps.hw_caps & ATH9K_HW_CAP_EDMA)
+-		ath_rx_tasklet(sc, 1, true);
+-	ath_rx_tasklet(sc, 1, false);
+-	clear_bit(SC_OP_RXFLUSH, &sc->sc_flags);
+-}
+-
+ static bool ath_beacon_dtim_pending_cab(struct sk_buff *skb)
+ {
+ 	/* Check whether the Beacon frame has DTIM indicating buffered bc/mc */
+@@ -735,6 +734,7 @@ static struct ath_buf *ath_get_next_rx_b
+ 			return NULL;
+ 	}
  
-+	ath9k_debug_samp_bb_mac(sc);
- 	ath9k_ps_restore(sc);
++	list_del(&bf->list);
+ 	if (!bf->bf_mpdu)
+ 		return bf;
  
- set_timer:
-@@ -415,7 +416,6 @@ set_timer:
- 	* The interval must be the shortest necessary to satisfy ANI,
- 	* short calibration and long calibration.
- 	*/
--	ath9k_debug_samp_bb_mac(sc);
- 	cal_interval = ATH_LONG_CALINTERVAL;
- 	if (sc->sc_ah->config.enable_ani)
- 		cal_interval = min(cal_interval,
---- a/drivers/net/wireless/ath/ath.h
-+++ b/drivers/net/wireless/ath/ath.h
-@@ -143,6 +143,7 @@ struct ath_common {
- 	u32 keymax;
- 	DECLARE_BITMAP(keymap, ATH_KEYMAX);
- 	DECLARE_BITMAP(tkip_keymap, ATH_KEYMAX);
-+	DECLARE_BITMAP(ccmp_keymap, ATH_KEYMAX);
- 	enum ath_crypt_caps crypt_caps;
+@@ -1057,9 +1057,6 @@ int ath_rx_tasklet(struct ath_softc *sc,
  
- 	unsigned int clockrate;
---- a/drivers/net/wireless/ath/ath9k/recv.c
-+++ b/drivers/net/wireless/ath/ath9k/recv.c
-@@ -785,7 +785,8 @@ static bool ath9k_rx_accept(struct ath_c
- 	 * descriptor does contain a valid key index. This has been observed
- 	 * mostly with CCMP encryption.
- 	 */
--	if (rx_stats->rs_keyix == ATH9K_RXKEYIX_INVALID)
-+	if (rx_stats->rs_keyix == ATH9K_RXKEYIX_INVALID ||
-+	    !test_bit(rx_stats->rs_keyix, common->ccmp_keymap))
- 		rx_stats->rs_status &= ~ATH9K_RXERR_KEYMISS;
+ 	do {
+ 		bool decrypt_error = false;
+-		/* If handling rx interrupt and flush is in progress => exit */
+-		if (test_bit(SC_OP_RXFLUSH, &sc->sc_flags) && (flush == 0))
+-			break;
  
- 	if (!rx_stats->rs_datalen) {
---- a/drivers/net/wireless/ath/key.c
-+++ b/drivers/net/wireless/ath/key.c
-@@ -556,6 +556,9 @@ int ath_key_config(struct ath_common *co
- 		return -EIO;
+ 		memset(&rs, 0, sizeof(rs));
+ 		if (edma)
+@@ -1102,15 +1099,6 @@ int ath_rx_tasklet(struct ath_softc *sc,
  
- 	set_bit(idx, common->keymap);
-+	if (key->cipher == WLAN_CIPHER_SUITE_CCMP)
-+		set_bit(idx, common->ccmp_keymap);
+ 		ath_debug_stat_rx(sc, &rs);
+ 
+-		/*
+-		 * If we're asked to flush receive queue, directly
+-		 * chain it back at the queue without processing it.
+-		 */
+-		if (test_bit(SC_OP_RXFLUSH, &sc->sc_flags)) {
+-			RX_STAT_INC(rx_drop_rxflush);
+-			goto requeue_drop_frag;
+-		}
+-
+ 		memset(rxs, 0, sizeof(struct ieee80211_rx_status));
+ 
+ 		rxs->mactime = (tsf & ~0xffffffffULL) | rs.rs_tstamp;
+@@ -1245,14 +1233,15 @@ requeue_drop_frag:
+ 			sc->rx.frag = NULL;
+ 		}
+ requeue:
++		list_add_tail(&bf->list, &sc->rx.rxbuf);
++		if (!flush)
++			continue;
 +
- 	if (key->cipher == WLAN_CIPHER_SUITE_TKIP) {
- 		set_bit(idx + 64, common->keymap);
- 		set_bit(idx, common->tkip_keymap);
-@@ -582,6 +585,7 @@ void ath_key_delete(struct ath_common *c
- 		return;
+ 		if (edma) {
+-			list_add_tail(&bf->list, &sc->rx.rxbuf);
+ 			ath_rx_edma_buf_link(sc, qtype);
+ 		} else {
+-			list_move_tail(&bf->list, &sc->rx.rxbuf);
+ 			ath_rx_buf_link(sc, bf);
+-			if (!flush)
+-				ath9k_hw_rxena(ah);
++			ath9k_hw_rxena(ah);
+ 		}
+ 	} while (1);
  
- 	clear_bit(key->hw_key_idx, common->keymap);
-+	clear_bit(key->hw_key_idx, common->ccmp_keymap);
- 	if (key->cipher != WLAN_CIPHER_SUITE_TKIP)
- 		return;
+--- a/drivers/net/wireless/ath/ath9k/ar9003_eeprom.c
++++ b/drivers/net/wireless/ath/ath9k/ar9003_eeprom.c
+@@ -4586,14 +4586,14 @@ static int ar9003_hw_cal_pier_get(struct
+ 	return 0;
+ }
+ 
+-static int ar9003_hw_power_control_override(struct ath_hw *ah,
+-					    int frequency,
+-					    int *correction,
+-					    int *voltage, int *temperature)
++static void ar9003_hw_power_control_override(struct ath_hw *ah,
++					     int frequency,
++					     int *correction,
++					     int *voltage, int *temperature)
+ {
+-	int tempSlope = 0;
++	int temp_slope = 0, temp_slope1 = 0, temp_slope2 = 0;
+ 	struct ar9300_eeprom *eep = &ah->eeprom.ar9300_eep;
+-	int f[8], t[8], i;
++	int f[8], t[8], t1[3], t2[3], i;
+ 
+ 	REG_RMW(ah, AR_PHY_TPC_11_B0,
+ 		(correction[0] << AR_PHY_TPC_OLPC_GAIN_DELTA_S),
+@@ -4624,38 +4624,108 @@ static int ar9003_hw_power_control_overr
+ 	 * enable temperature compensation
+ 	 * Need to use register names
+ 	 */
+-	if (frequency < 4000)
+-		tempSlope = eep->modalHeader2G.tempSlope;
+-	else if ((eep->baseEepHeader.miscConfiguration & 0x20) != 0) {
+-		for (i = 0; i < 8; i++) {
+-			t[i] = eep->base_ext1.tempslopextension[i];
+-			f[i] = FBIN2FREQ(eep->calFreqPier5G[i], 0);
+-		}
+-		tempSlope = ar9003_hw_power_interpolate((s32) frequency,
+-							f, t, 8);
+-	} else if (eep->base_ext2.tempSlopeLow != 0) {
+-		t[0] = eep->base_ext2.tempSlopeLow;
+-		f[0] = 5180;
+-		t[1] = eep->modalHeader5G.tempSlope;
+-		f[1] = 5500;
+-		t[2] = eep->base_ext2.tempSlopeHigh;
+-		f[2] = 5785;
+-		tempSlope = ar9003_hw_power_interpolate((s32) frequency,
+-							f, t, 3);
+-	} else
+-		tempSlope = eep->modalHeader5G.tempSlope;
++	if (frequency < 4000) {
++		temp_slope = eep->modalHeader2G.tempSlope;
++	} else {
++		if (AR_SREV_9550(ah)) {
++			t[0] = eep->base_ext1.tempslopextension[2];
++			t1[0] = eep->base_ext1.tempslopextension[3];
++			t2[0] = eep->base_ext1.tempslopextension[4];
++			f[0] = 5180;
++
++			t[1] = eep->modalHeader5G.tempSlope;
++			t1[1] = eep->base_ext1.tempslopextension[0];
++			t2[1] = eep->base_ext1.tempslopextension[1];
++			f[1] = 5500;
++
++			t[2] = eep->base_ext1.tempslopextension[5];
++			t1[2] = eep->base_ext1.tempslopextension[6];
++			t2[2] = eep->base_ext1.tempslopextension[7];
++			f[2] = 5785;
++
++			temp_slope = ar9003_hw_power_interpolate(frequency,
++								 f, t, 3);
++			temp_slope1 = ar9003_hw_power_interpolate(frequency,
++								   f, t1, 3);
++			temp_slope2 = ar9003_hw_power_interpolate(frequency,
++								   f, t2, 3);
++
++			goto tempslope;
++		}
++
++		if ((eep->baseEepHeader.miscConfiguration & 0x20) != 0) {
++			for (i = 0; i < 8; i++) {
++				t[i] = eep->base_ext1.tempslopextension[i];
++				f[i] = FBIN2FREQ(eep->calFreqPier5G[i], 0);
++			}
++			temp_slope = ar9003_hw_power_interpolate((s32) frequency,
++								 f, t, 8);
++		} else if (eep->base_ext2.tempSlopeLow != 0) {
++			t[0] = eep->base_ext2.tempSlopeLow;
++			f[0] = 5180;
++			t[1] = eep->modalHeader5G.tempSlope;
++			f[1] = 5500;
++			t[2] = eep->base_ext2.tempSlopeHigh;
++			f[2] = 5785;
++			temp_slope = ar9003_hw_power_interpolate((s32) frequency,
++								 f, t, 3);
++		} else {
++			temp_slope = eep->modalHeader5G.tempSlope;
++		}
++	}
+ 
+-	REG_RMW_FIELD(ah, AR_PHY_TPC_19, AR_PHY_TPC_19_ALPHA_THERM, tempSlope);
++tempslope:
++	if (AR_SREV_9550(ah)) {
++		/*
++		 * AR955x has tempSlope register for each chain.
++		 * Check whether temp_compensation feature is enabled or not.
++		 */
++		if (eep->baseEepHeader.featureEnable & 0x1) {
++			if (frequency < 4000) {
++				REG_RMW_FIELD(ah, AR_PHY_TPC_19,
++					      AR_PHY_TPC_19_ALPHA_THERM,
++					      eep->base_ext2.tempSlopeLow);
++				REG_RMW_FIELD(ah, AR_PHY_TPC_19_B1,
++					      AR_PHY_TPC_19_ALPHA_THERM,
++					      temp_slope);
++				REG_RMW_FIELD(ah, AR_PHY_TPC_19_B2,
++					      AR_PHY_TPC_19_ALPHA_THERM,
++					      eep->base_ext2.tempSlopeHigh);
++			} else {
++				REG_RMW_FIELD(ah, AR_PHY_TPC_19,
++					      AR_PHY_TPC_19_ALPHA_THERM,
++					      temp_slope);
++				REG_RMW_FIELD(ah, AR_PHY_TPC_19_B1,
++					      AR_PHY_TPC_19_ALPHA_THERM,
++					      temp_slope1);
++				REG_RMW_FIELD(ah, AR_PHY_TPC_19_B2,
++					      AR_PHY_TPC_19_ALPHA_THERM,
++					      temp_slope2);
++			}
++		} else {
++			/*
++			 * If temp compensation is not enabled,
++			 * set all registers to 0.
++			 */
++			REG_RMW_FIELD(ah, AR_PHY_TPC_19,
++				      AR_PHY_TPC_19_ALPHA_THERM, 0);
++			REG_RMW_FIELD(ah, AR_PHY_TPC_19_B1,
++				      AR_PHY_TPC_19_ALPHA_THERM, 0);
++			REG_RMW_FIELD(ah, AR_PHY_TPC_19_B2,
++				      AR_PHY_TPC_19_ALPHA_THERM, 0);
++		}
++	} else {
++		REG_RMW_FIELD(ah, AR_PHY_TPC_19,
++			      AR_PHY_TPC_19_ALPHA_THERM, temp_slope);
++	}
+ 
+ 	if (AR_SREV_9462_20(ah))
+ 		REG_RMW_FIELD(ah, AR_PHY_TPC_19_B1,
+-			      AR_PHY_TPC_19_B1_ALPHA_THERM, tempSlope);
++			      AR_PHY_TPC_19_B1_ALPHA_THERM, temp_slope);
+ 
+ 
+ 	REG_RMW_FIELD(ah, AR_PHY_TPC_18, AR_PHY_TPC_18_THERM_CAL_VALUE,
+ 		      temperature[0]);
+-
+-	return 0;
+ }
+ 
+ /* Apply the recorded correction values. */
+--- a/drivers/net/wireless/ath/ath9k/ar9003_phy.c
++++ b/drivers/net/wireless/ath/ath9k/ar9003_phy.c
+@@ -68,7 +68,7 @@ static const int m2ThreshExt_off = 127;
+ static int ar9003_hw_set_channel(struct ath_hw *ah, struct ath9k_channel *chan)
+ {
+ 	u16 bMode, fracMode = 0, aModeRefSel = 0;
+-	u32 freq, channelSel = 0, reg32 = 0;
++	u32 freq, chan_frac, div, channelSel = 0, reg32 = 0;
+ 	struct chan_centers centers;
+ 	int loadSynthChannel;
+ 
+@@ -77,9 +77,6 @@ static int ar9003_hw_set_channel(struct 
+ 
+ 	if (freq < 4800) {     /* 2 GHz, fractional mode */
+ 		if (AR_SREV_9330(ah)) {
+-			u32 chan_frac;
+-			u32 div;
+-
+ 			if (ah->is_clk_25mhz)
+ 				div = 75;
+ 			else
+@@ -89,34 +86,40 @@ static int ar9003_hw_set_channel(struct 
+ 			chan_frac = (((freq * 4) % div) * 0x20000) / div;
+ 			channelSel = (channelSel << 17) | chan_frac;
+ 		} else if (AR_SREV_9485(ah) || AR_SREV_9565(ah)) {
+-			u32 chan_frac;
+-
+ 			/*
+-			 * freq_ref = 40 / (refdiva >> amoderefsel); where refdiva=1 and amoderefsel=0
++			 * freq_ref = 40 / (refdiva >> amoderefsel);
++			 * where refdiva=1 and amoderefsel=0
+ 			 * ndiv = ((chan_mhz * 4) / 3) / freq_ref;
+ 			 * chansel = int(ndiv), chanfrac = (ndiv - chansel) * 0x20000
+ 			 */
+ 			channelSel = (freq * 4) / 120;
+ 			chan_frac = (((freq * 4) % 120) * 0x20000) / 120;
+ 			channelSel = (channelSel << 17) | chan_frac;
+-		} else if (AR_SREV_9340(ah) || AR_SREV_9550(ah)) {
++		} else if (AR_SREV_9340(ah)) {
+ 			if (ah->is_clk_25mhz) {
+-				u32 chan_frac;
+-
+ 				channelSel = (freq * 2) / 75;
+ 				chan_frac = (((freq * 2) % 75) * 0x20000) / 75;
+ 				channelSel = (channelSel << 17) | chan_frac;
+-			} else
++			} else {
+ 				channelSel = CHANSEL_2G(freq) >> 1;
+-		} else
++			}
++		} else if (AR_SREV_9550(ah)) {
++			if (ah->is_clk_25mhz)
++				div = 75;
++			else
++				div = 120;
++
++			channelSel = (freq * 4) / div;
++			chan_frac = (((freq * 4) % div) * 0x20000) / div;
++			channelSel = (channelSel << 17) | chan_frac;
++		} else {
+ 			channelSel = CHANSEL_2G(freq);
++		}
+ 		/* Set to 2G mode */
+ 		bMode = 1;
+ 	} else {
+ 		if ((AR_SREV_9340(ah) || AR_SREV_9550(ah)) &&
+ 		    ah->is_clk_25mhz) {
+-			u32 chan_frac;
+-
+ 			channelSel = freq / 75;
+ 			chan_frac = ((freq % 75) * 0x20000) / 75;
+ 			channelSel = (channelSel << 17) | chan_frac;
+--- a/drivers/net/wireless/ath/ath9k/ar9003_phy.h
++++ b/drivers/net/wireless/ath/ath9k/ar9003_phy.h
+@@ -1028,7 +1028,7 @@
+ #define AR_PHY_TPC_5_B2          (AR_SM2_BASE + 0x208)
+ #define AR_PHY_TPC_6_B2          (AR_SM2_BASE + 0x20c)
+ #define AR_PHY_TPC_11_B2         (AR_SM2_BASE + 0x220)
+-#define AR_PHY_PDADC_TAB_2       (AR_SM2_BASE + 0x240)
++#define AR_PHY_TPC_19_B2         (AR_SM2_BASE + 0x240)
+ #define AR_PHY_TX_IQCAL_STATUS_B2   (AR_SM2_BASE + 0x48c)
+ #define AR_PHY_TX_IQCAL_CORR_COEFF_B2(_i)    (AR_SM2_BASE + 0x450 + ((_i) << 2))
+ 
+--- a/drivers/net/wireless/ath/ath9k/ar955x_1p0_initvals.h
++++ b/drivers/net/wireless/ath/ath9k/ar955x_1p0_initvals.h
+@@ -23,16 +23,16 @@
+ static const u32 ar955x_1p0_radio_postamble[][5] = {
+ 	/* Addr      5G_HT20     5G_HT40     2G_HT40     2G_HT20   */
+ 	{0x00016098, 0xd2dd5554, 0xd2dd5554, 0xd28b3330, 0xd28b3330},
+-	{0x0001609c, 0x0a566f3a, 0x0a566f3a, 0x06345f2a, 0x06345f2a},
+-	{0x000160ac, 0xa4647c00, 0xa4647c00, 0xa4646800, 0xa4646800},
+-	{0x000160b0, 0x01885f52, 0x01885f52, 0x04accf3a, 0x04accf3a},
+-	{0x00016104, 0xb7a00001, 0xb7a00001, 0xb7a00001, 0xb7a00001},
++	{0x0001609c, 0x0a566f3a, 0x0a566f3a, 0x0a566f3a, 0x0a566f3a},
++	{0x000160ac, 0xa4647c00, 0xa4647c00, 0x24647c00, 0x24647c00},
++	{0x000160b0, 0x01885f52, 0x01885f52, 0x01885f52, 0x01885f52},
++	{0x00016104, 0xb7a00000, 0xb7a00000, 0xb7a00001, 0xb7a00001},
+ 	{0x0001610c, 0xc0000000, 0xc0000000, 0xc0000000, 0xc0000000},
+ 	{0x00016140, 0x10804008, 0x10804008, 0x10804008, 0x10804008},
+-	{0x00016504, 0xb7a00001, 0xb7a00001, 0xb7a00001, 0xb7a00001},
++	{0x00016504, 0xb7a00000, 0xb7a00000, 0xb7a00001, 0xb7a00001},
+ 	{0x0001650c, 0xc0000000, 0xc0000000, 0xc0000000, 0xc0000000},
+ 	{0x00016540, 0x10804008, 0x10804008, 0x10804008, 0x10804008},
+-	{0x00016904, 0xb7a00001, 0xb7a00001, 0xb7a00001, 0xb7a00001},
++	{0x00016904, 0xb7a00000, 0xb7a00000, 0xb7a00001, 0xb7a00001},
+ 	{0x0001690c, 0xc0000000, 0xc0000000, 0xc0000000, 0xc0000000},
+ 	{0x00016940, 0x10804008, 0x10804008, 0x10804008, 0x10804008},
+ };
+@@ -69,15 +69,15 @@ static const u32 ar955x_1p0_baseband_pos
+ 	{0x0000a204, 0x005c0ec0, 0x005c0ec4, 0x005c0ec4, 0x005c0ec0},
+ 	{0x0000a208, 0x00000104, 0x00000104, 0x00000004, 0x00000004},
+ 	{0x0000a22c, 0x07e26a2f, 0x07e26a2f, 0x01026a2f, 0x01026a2f},
+-	{0x0000a230, 0x0000000a, 0x00000014, 0x00000016, 0x0000000b},
++	{0x0000a230, 0x0000400a, 0x00004014, 0x00004016, 0x0000400b},
+ 	{0x0000a234, 0x00000fff, 0x10000fff, 0x10000fff, 0x00000fff},
+ 	{0x0000a238, 0xffb01018, 0xffb01018, 0xffb01018, 0xffb01018},
+ 	{0x0000a250, 0x00000000, 0x00000000, 0x00000210, 0x00000108},
+ 	{0x0000a254, 0x000007d0, 0x00000fa0, 0x00001130, 0x00000898},
+ 	{0x0000a258, 0x02020002, 0x02020002, 0x02020002, 0x02020002},
+-	{0x0000a25c, 0x01000e0e, 0x01000e0e, 0x01000e0e, 0x01000e0e},
++	{0x0000a25c, 0x01000e0e, 0x01000e0e, 0x01010e0e, 0x01010e0e},
+ 	{0x0000a260, 0x0a021501, 0x0a021501, 0x3a021501, 0x3a021501},
+-	{0x0000a264, 0x00000e0e, 0x00000e0e, 0x00000e0e, 0x00000e0e},
++	{0x0000a264, 0x00000e0e, 0x00000e0e, 0x01000e0e, 0x01000e0e},
+ 	{0x0000a280, 0x00000007, 0x00000007, 0x0000000b, 0x0000000b},
+ 	{0x0000a284, 0x00000000, 0x00000000, 0x00000010, 0x00000010},
+ 	{0x0000a288, 0x00000110, 0x00000110, 0x00000110, 0x00000110},
+@@ -125,7 +125,7 @@ static const u32 ar955x_1p0_radio_core[]
+ 	{0x00016094, 0x00000000},
+ 	{0x000160a0, 0x0a108ffe},
+ 	{0x000160a4, 0x812fc370},
+-	{0x000160a8, 0x423c8000},
++	{0x000160a8, 0x423c8100},
+ 	{0x000160b4, 0x92480080},
+ 	{0x000160c0, 0x006db6d0},
+ 	{0x000160c4, 0x6db6db60},
+@@ -134,7 +134,7 @@ static const u32 ar955x_1p0_radio_core[]
+ 	{0x00016100, 0x11999601},
+ 	{0x00016108, 0x00080010},
+ 	{0x00016144, 0x02084080},
+-	{0x00016148, 0x000080c0},
++	{0x00016148, 0x00008040},
+ 	{0x00016280, 0x01800804},
+ 	{0x00016284, 0x00038dc5},
+ 	{0x00016288, 0x00000000},
+@@ -178,7 +178,7 @@ static const u32 ar955x_1p0_radio_core[]
+ 	{0x00016500, 0x11999601},
+ 	{0x00016508, 0x00080010},
+ 	{0x00016544, 0x02084080},
+-	{0x00016548, 0x000080c0},
++	{0x00016548, 0x00008040},
+ 	{0x00016780, 0x00000000},
+ 	{0x00016784, 0x00000000},
+ 	{0x00016788, 0x00400705},
+@@ -218,7 +218,7 @@ static const u32 ar955x_1p0_radio_core[]
+ 	{0x00016900, 0x11999601},
+ 	{0x00016908, 0x00080010},
+ 	{0x00016944, 0x02084080},
+-	{0x00016948, 0x000080c0},
++	{0x00016948, 0x00008040},
+ 	{0x00016b80, 0x00000000},
+ 	{0x00016b84, 0x00000000},
+ 	{0x00016b88, 0x00400705},
+@@ -245,9 +245,9 @@ static const u32 ar955x_1p0_radio_core[]
+ 
+ static const u32 ar955x_1p0_modes_xpa_tx_gain_table[][9] = {
+ 	/* Addr      5G_HT20_L   5G_HT40_L   5G_HT20_M   5G_HT40_M   5G_HT20_H   5G_HT40_H   2G_HT40     2G_HT20  */
+-	{0x0000a2dc, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xfffd5aaa, 0xfffd5aaa},
+-	{0x0000a2e0, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xfffe9ccc, 0xfffe9ccc},
+-	{0x0000a2e4, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xffffe0f0, 0xffffe0f0},
++	{0x0000a2dc, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xfffd5aaa, 0xfffd5aaa},
++	{0x0000a2e0, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffe9ccc, 0xfffe9ccc},
++	{0x0000a2e4, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffffe0f0, 0xffffe0f0},
+ 	{0x0000a2e8, 0xffffff00, 0xffffff00, 0xffffff00, 0xffffff00, 0xffffff00, 0xffffff00, 0xfffcff00, 0xfffcff00},
+ 	{0x0000a410, 0x000050de, 0x000050de, 0x000050de, 0x000050de, 0x000050de, 0x000050de, 0x000050da, 0x000050da},
+ 	{0x0000a500, 0x00000003, 0x00000003, 0x00000003, 0x00000003, 0x00000003, 0x00000003, 0x00000000, 0x00000000},
+@@ -256,63 +256,63 @@ static const u32 ar955x_1p0_modes_xpa_tx
+ 	{0x0000a50c, 0x0c00000b, 0x0c00000b, 0x0c00000b, 0x0c00000b, 0x0c00000b, 0x0c00000b, 0x0c000006, 0x0c000006},
+ 	{0x0000a510, 0x1000000d, 0x1000000d, 0x1000000d, 0x1000000d, 0x1000000d, 0x1000000d, 0x0f00000a, 0x0f00000a},
+ 	{0x0000a514, 0x14000011, 0x14000011, 0x14000011, 0x14000011, 0x14000011, 0x14000011, 0x1300000c, 0x1300000c},
+-	{0x0000a518, 0x19004008, 0x19004008, 0x19004008, 0x19004008, 0x18004008, 0x18004008, 0x1700000e, 0x1700000e},
+-	{0x0000a51c, 0x1d00400a, 0x1d00400a, 0x1d00400a, 0x1d00400a, 0x1c00400a, 0x1c00400a, 0x1b000064, 0x1b000064},
+-	{0x0000a520, 0x230020a2, 0x230020a2, 0x210020a2, 0x210020a2, 0x200020a2, 0x200020a2, 0x1f000242, 0x1f000242},
+-	{0x0000a524, 0x2500006e, 0x2500006e, 0x2500006e, 0x2500006e, 0x2400006e, 0x2400006e, 0x23000229, 0x23000229},
+-	{0x0000a528, 0x29022221, 0x29022221, 0x28022221, 0x28022221, 0x27022221, 0x27022221, 0x270002a2, 0x270002a2},
+-	{0x0000a52c, 0x2d00062a, 0x2d00062a, 0x2c00062a, 0x2c00062a, 0x2a00062a, 0x2a00062a, 0x2c001203, 0x2c001203},
+-	{0x0000a530, 0x340220a5, 0x340220a5, 0x320220a5, 0x320220a5, 0x2f0220a5, 0x2f0220a5, 0x30001803, 0x30001803},
+-	{0x0000a534, 0x380022c5, 0x380022c5, 0x350022c5, 0x350022c5, 0x320022c5, 0x320022c5, 0x33000881, 0x33000881},
+-	{0x0000a538, 0x3b002486, 0x3b002486, 0x39002486, 0x39002486, 0x36002486, 0x36002486, 0x38001809, 0x38001809},
+-	{0x0000a53c, 0x3f00248a, 0x3f00248a, 0x3d00248a, 0x3d00248a, 0x3a00248a, 0x3a00248a, 0x3a000814, 0x3a000814},
+-	{0x0000a540, 0x4202242c, 0x4202242c, 0x4102242c, 0x4102242c, 0x3f02242c, 0x3f02242c, 0x3f001a0c, 0x3f001a0c},
+-	{0x0000a544, 0x490044c6, 0x490044c6, 0x460044c6, 0x460044c6, 0x420044c6, 0x420044c6, 0x43001a0e, 0x43001a0e},
+-	{0x0000a548, 0x4d024485, 0x4d024485, 0x4a024485, 0x4a024485, 0x46024485, 0x46024485, 0x46001812, 0x46001812},
+-	{0x0000a54c, 0x51044483, 0x51044483, 0x4e044483, 0x4e044483, 0x4a044483, 0x4a044483, 0x49001884, 0x49001884},
+-	{0x0000a550, 0x5404a40c, 0x5404a40c, 0x5204a40c, 0x5204a40c, 0x4d04a40c, 0x4d04a40c, 0x4d001e84, 0x4d001e84},
+-	{0x0000a554, 0x57024632, 0x57024632, 0x55024632, 0x55024632, 0x52024632, 0x52024632, 0x50001e69, 0x50001e69},
+-	{0x0000a558, 0x5c00a634, 0x5c00a634, 0x5900a634, 0x5900a634, 0x5600a634, 0x5600a634, 0x550006f4, 0x550006f4},
+-	{0x0000a55c, 0x5f026832, 0x5f026832, 0x5d026832, 0x5d026832, 0x5a026832, 0x5a026832, 0x59000ad3, 0x59000ad3},
+-	{0x0000a560, 0x6602b012, 0x6602b012, 0x6202b012, 0x6202b012, 0x5d02b012, 0x5d02b012, 0x5e000ad5, 0x5e000ad5},
+-	{0x0000a564, 0x6e02d0e1, 0x6e02d0e1, 0x6802d0e1, 0x6802d0e1, 0x6002d0e1, 0x6002d0e1, 0x61001ced, 0x61001ced},
+-	{0x0000a568, 0x7202b4c4, 0x7202b4c4, 0x6c02b4c4, 0x6c02b4c4, 0x6502b4c4, 0x6502b4c4, 0x660018d4, 0x660018d4},
+-	{0x0000a56c, 0x75007894, 0x75007894, 0x70007894, 0x70007894, 0x6b007894, 0x6b007894, 0x660018d4, 0x660018d4},
+-	{0x0000a570, 0x7b025c74, 0x7b025c74, 0x75025c74, 0x75025c74, 0x70025c74, 0x70025c74, 0x660018d4, 0x660018d4},
+-	{0x0000a574, 0x8300bcb5, 0x8300bcb5, 0x7a00bcb5, 0x7a00bcb5, 0x7600bcb5, 0x7600bcb5, 0x660018d4, 0x660018d4},
+-	{0x0000a578, 0x8a04dc74, 0x8a04dc74, 0x7f04dc74, 0x7f04dc74, 0x7c04dc74, 0x7c04dc74, 0x660018d4, 0x660018d4},
+-	{0x0000a57c, 0x8a04dc74, 0x8a04dc74, 0x7f04dc74, 0x7f04dc74, 0x7c04dc74, 0x7c04dc74, 0x660018d4, 0x660018d4},
++	{0x0000a518, 0x1700002b, 0x1700002b, 0x1700002b, 0x1700002b, 0x1600002b, 0x1600002b, 0x1700000e, 0x1700000e},
++	{0x0000a51c, 0x1b00002d, 0x1b00002d, 0x1b00002d, 0x1b00002d, 0x1a00002d, 0x1a00002d, 0x1b000064, 0x1b000064},
++	{0x0000a520, 0x20000031, 0x20000031, 0x1f000031, 0x1f000031, 0x1e000031, 0x1e000031, 0x1f000242, 0x1f000242},
++	{0x0000a524, 0x24000051, 0x24000051, 0x23000051, 0x23000051, 0x23000051, 0x23000051, 0x23000229, 0x23000229},
++	{0x0000a528, 0x27000071, 0x27000071, 0x27000071, 0x27000071, 0x26000071, 0x26000071, 0x270002a2, 0x270002a2},
++	{0x0000a52c, 0x2b000092, 0x2b000092, 0x2b000092, 0x2b000092, 0x2b000092, 0x2b000092, 0x2c001203, 0x2c001203},
++	{0x0000a530, 0x3000028c, 0x3000028c, 0x2f00028c, 0x2f00028c, 0x2e00028c, 0x2e00028c, 0x30001803, 0x30001803},
++	{0x0000a534, 0x34000290, 0x34000290, 0x33000290, 0x33000290, 0x32000290, 0x32000290, 0x33000881, 0x33000881},
++	{0x0000a538, 0x37000292, 0x37000292, 0x36000292, 0x36000292, 0x35000292, 0x35000292, 0x38001809, 0x38001809},
++	{0x0000a53c, 0x3b02028d, 0x3b02028d, 0x3a02028d, 0x3a02028d, 0x3902028d, 0x3902028d, 0x3a000814, 0x3a000814},
++	{0x0000a540, 0x3f020291, 0x3f020291, 0x3e020291, 0x3e020291, 0x3d020291, 0x3d020291, 0x3f001a0c, 0x3f001a0c},
++	{0x0000a544, 0x44020490, 0x44020490, 0x43020490, 0x43020490, 0x42020490, 0x42020490, 0x43001a0e, 0x43001a0e},
++	{0x0000a548, 0x48020492, 0x48020492, 0x47020492, 0x47020492, 0x46020492, 0x46020492, 0x46001812, 0x46001812},
++	{0x0000a54c, 0x4c020692, 0x4c020692, 0x4b020692, 0x4b020692, 0x4a020692, 0x4a020692, 0x49001884, 0x49001884},
++	{0x0000a550, 0x50020892, 0x50020892, 0x4f020892, 0x4f020892, 0x4e020892, 0x4e020892, 0x4d001e84, 0x4d001e84},
++	{0x0000a554, 0x53040891, 0x53040891, 0x53040891, 0x53040891, 0x52040891, 0x52040891, 0x50001e69, 0x50001e69},
++	{0x0000a558, 0x58040893, 0x58040893, 0x57040893, 0x57040893, 0x56040893, 0x56040893, 0x550006f4, 0x550006f4},
++	{0x0000a55c, 0x5c0408b4, 0x5c0408b4, 0x5a0408b4, 0x5a0408b4, 0x5a0408b4, 0x5a0408b4, 0x59000ad3, 0x59000ad3},
++	{0x0000a560, 0x610408b6, 0x610408b6, 0x5e0408b6, 0x5e0408b6, 0x5e0408b6, 0x5e0408b6, 0x5e000ad5, 0x5e000ad5},
++	{0x0000a564, 0x670408f6, 0x670408f6, 0x620408f6, 0x620408f6, 0x620408f6, 0x620408f6, 0x61001ced, 0x61001ced},
++	{0x0000a568, 0x6a040cf6, 0x6a040cf6, 0x66040cf6, 0x66040cf6, 0x66040cf6, 0x66040cf6, 0x660018d4, 0x660018d4},
++	{0x0000a56c, 0x6d040d76, 0x6d040d76, 0x6a040d76, 0x6a040d76, 0x6a040d76, 0x6a040d76, 0x660018d4, 0x660018d4},
++	{0x0000a570, 0x70060db6, 0x70060db6, 0x6e060db6, 0x6e060db6, 0x6e060db6, 0x6e060db6, 0x660018d4, 0x660018d4},
++	{0x0000a574, 0x730a0df6, 0x730a0df6, 0x720a0df6, 0x720a0df6, 0x720a0df6, 0x720a0df6, 0x660018d4, 0x660018d4},
++	{0x0000a578, 0x770a13f6, 0x770a13f6, 0x760a13f6, 0x760a13f6, 0x760a13f6, 0x760a13f6, 0x660018d4, 0x660018d4},
++	{0x0000a57c, 0x770a13f6, 0x770a13f6, 0x760a13f6, 0x760a13f6, 0x760a13f6, 0x760a13f6, 0x660018d4, 0x660018d4},
+ 	{0x0000a600, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
+ 	{0x0000a604, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
+ 	{0x0000a608, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
+-	{0x0000a60c, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x03804000, 0x03804000},
+-	{0x0000a610, 0x04c08c01, 0x04c08c01, 0x04808b01, 0x04808b01, 0x04808a01, 0x04808a01, 0x0300ca02, 0x0300ca02},
+-	{0x0000a614, 0x00c0c303, 0x00c0c303, 0x00c0c303, 0x00c0c303, 0x00c0c303, 0x00c0c303, 0x00000e04, 0x00000e04},
+-	{0x0000a618, 0x04010c01, 0x04010c01, 0x03c10b01, 0x03c10b01, 0x03810a01, 0x03810a01, 0x03014000, 0x03014000},
+-	{0x0000a61c, 0x03814e05, 0x03814e05, 0x03414d05, 0x03414d05, 0x03414d05, 0x03414d05, 0x00000000, 0x00000000},
+-	{0x0000a620, 0x04010303, 0x04010303, 0x03c10303, 0x03c10303, 0x03810303, 0x03810303, 0x00000000, 0x00000000},
+-	{0x0000a624, 0x03814e05, 0x03814e05, 0x03414d05, 0x03414d05, 0x03414d05, 0x03414d05, 0x03014000, 0x03014000},
+-	{0x0000a628, 0x00c0c000, 0x00c0c000, 0x00c0c000, 0x00c0c000, 0x00c0c000, 0x00c0c000, 0x03804c05, 0x03804c05},
+-	{0x0000a62c, 0x00c0c303, 0x00c0c303, 0x00c0c303, 0x00c0c303, 0x00c0c303, 0x00c0c303, 0x0701de06, 0x0701de06},
+-	{0x0000a630, 0x03418000, 0x03418000, 0x03018000, 0x03018000, 0x02c18000, 0x02c18000, 0x07819c07, 0x07819c07},
+-	{0x0000a634, 0x03815004, 0x03815004, 0x03414f04, 0x03414f04, 0x03414e04, 0x03414e04, 0x0701dc07, 0x0701dc07},
+-	{0x0000a638, 0x03005302, 0x03005302, 0x02c05202, 0x02c05202, 0x02805202, 0x02805202, 0x0701dc07, 0x0701dc07},
+-	{0x0000a63c, 0x04c09302, 0x04c09302, 0x04809202, 0x04809202, 0x04809202, 0x04809202, 0x0701dc07, 0x0701dc07},
+-	{0x0000b2dc, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xfffd5aaa, 0xfffd5aaa},
+-	{0x0000b2e0, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xfffe9ccc, 0xfffe9ccc},
+-	{0x0000b2e4, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xffffe0f0, 0xffffe0f0},
++	{0x0000a60c, 0x02c04b01, 0x02c04b01, 0x02c04b01, 0x02c04b01, 0x02c04b01, 0x02c04b01, 0x03804000, 0x03804000},
++	{0x0000a610, 0x04008b01, 0x04008b01, 0x04008b01, 0x04008b01, 0x03c08b01, 0x03c08b01, 0x0300ca02, 0x0300ca02},
++	{0x0000a614, 0x05811403, 0x05811403, 0x05411303, 0x05411303, 0x05411303, 0x05411303, 0x00000e04, 0x00000e04},
++	{0x0000a618, 0x05811604, 0x05811604, 0x05411504, 0x05411504, 0x05411504, 0x05411504, 0x03014000, 0x03014000},
++	{0x0000a61c, 0x05811604, 0x05811604, 0x05411504, 0x05411504, 0x05411504, 0x05411504, 0x00000000, 0x00000000},
++	{0x0000a620, 0x05811604, 0x05811604, 0x05411504, 0x05411504, 0x05411504, 0x05411504, 0x00000000, 0x00000000},
++	{0x0000a624, 0x05811604, 0x05811604, 0x05411504, 0x05411504, 0x05411504, 0x05411504, 0x03014000, 0x03014000},
++	{0x0000a628, 0x05811604, 0x05811604, 0x05411504, 0x05411504, 0x05411504, 0x05411504, 0x03804c05, 0x03804c05},
++	{0x0000a62c, 0x06815604, 0x06815604, 0x06415504, 0x06415504, 0x06015504, 0x06015504, 0x0701de06, 0x0701de06},
++	{0x0000a630, 0x07819a05, 0x07819a05, 0x07419905, 0x07419905, 0x07019805, 0x07019805, 0x07819c07, 0x07819c07},
++	{0x0000a634, 0x07819e06, 0x07819e06, 0x07419d06, 0x07419d06, 0x07019c06, 0x07019c06, 0x0701dc07, 0x0701dc07},
++	{0x0000a638, 0x07819e06, 0x07819e06, 0x07419d06, 0x07419d06, 0x07019c06, 0x07019c06, 0x0701dc07, 0x0701dc07},
++	{0x0000a63c, 0x07819e06, 0x07819e06, 0x07419d06, 0x07419d06, 0x07019c06, 0x07019c06, 0x0701dc07, 0x0701dc07},
++	{0x0000b2dc, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xfffd5aaa, 0xfffd5aaa},
++	{0x0000b2e0, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffe9ccc, 0xfffe9ccc},
++	{0x0000b2e4, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffffe0f0, 0xffffe0f0},
+ 	{0x0000b2e8, 0xffffff00, 0xffffff00, 0xffffff00, 0xffffff00, 0xffffff00, 0xffffff00, 0xfffcff00, 0xfffcff00},
+-	{0x0000c2dc, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xffffaaaa, 0xfffd5aaa, 0xfffd5aaa},
+-	{0x0000c2e0, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xffffcccc, 0xfffe9ccc, 0xfffe9ccc},
+-	{0x0000c2e4, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xfffff0f0, 0xffffe0f0, 0xffffe0f0},
++	{0x0000c2dc, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xffff6aaa, 0xfffd5aaa, 0xfffd5aaa},
++	{0x0000c2e0, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffdcccc, 0xfffe9ccc, 0xfffe9ccc},
++	{0x0000c2e4, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffe3b0f0, 0xffffe0f0, 0xffffe0f0},
+ 	{0x0000c2e8, 0xffffff00, 0xffffff00, 0xffffff00, 0xffffff00, 0xffffff00, 0xffffff00, 0xfffcff00, 0xfffcff00},
+ 	{0x00016044, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x010002d4, 0x010002d4},
+-	{0x00016048, 0x62482401, 0x62482401, 0x62482401, 0x62482401, 0x62482401, 0x62482401, 0x66482401, 0x66482401},
++	{0x00016048, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401},
+ 	{0x00016280, 0x01801e84, 0x01801e84, 0x01801e84, 0x01801e84, 0x01801e84, 0x01801e84, 0x01808e84, 0x01808e84},
+ 	{0x00016444, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x010002d4, 0x010002d4},
+-	{0x00016448, 0x62482401, 0x62482401, 0x62482401, 0x62482401, 0x62482401, 0x62482401, 0x66482401, 0x66482401},
++	{0x00016448, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401},
+ 	{0x00016844, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x056db2d4, 0x010002d4, 0x010002d4},
+-	{0x00016848, 0x62482401, 0x62482401, 0x62482401, 0x62482401, 0x62482401, 0x62482401, 0x66482401, 0x66482401},
++	{0x00016848, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401, 0x66482401},
+ };
+ 
+ static const u32 ar955x_1p0_mac_core[][2] = {
+@@ -846,7 +846,7 @@ static const u32 ar955x_1p0_baseband_cor
+ 	{0x0000a44c, 0x00000001},
+ 	{0x0000a450, 0x00010000},
+ 	{0x0000a458, 0x00000000},
+-	{0x0000a644, 0x3fad9d74},
++	{0x0000a644, 0xbfad9d74},
+ 	{0x0000a648, 0x0048060a},
+ 	{0x0000a64c, 0x00003c37},
+ 	{0x0000a670, 0x03020100},
+@@ -1277,7 +1277,7 @@ static const u32 ar955x_1p0_modes_fast_c
+ 	{0x0000801c, 0x148ec02b, 0x148ec057},
+ 	{0x00008318, 0x000044c0, 0x00008980},
+ 	{0x00009e00, 0x0372131c, 0x0372131c},
+-	{0x0000a230, 0x0000000b, 0x00000016},
++	{0x0000a230, 0x0000400b, 0x00004016},
+ 	{0x0000a254, 0x00000898, 0x00001130},
+ };
+ 
+--- a/drivers/net/wireless/ath/ath9k/htc_hst.c
++++ b/drivers/net/wireless/ath/ath9k/htc_hst.c
+@@ -347,6 +347,8 @@ void ath9k_htc_txcompletion_cb(struct ht
+ 			endpoint->ep_callbacks.tx(endpoint->ep_callbacks.priv,
+ 						  skb, htc_hdr->endpoint_id,
+ 						  txok);
++		} else {
++			kfree_skb(skb);
+ 		}
+ 	}
+ 
+--- a/net/wireless/reg.c
++++ b/net/wireless/reg.c
+@@ -142,8 +142,8 @@ static void rcu_free_regdom(const struct
+ 
+ static struct regulatory_request *get_last_request(void)
+ {
+-	return rcu_dereference_protected(last_request,
+-					 lockdep_is_held(&reg_mutex));
++	return rcu_dereference_check(last_request,
++				     lockdep_is_held(&reg_mutex));
+ }
+ 
+ /* Used to queue up regulatory hints */
+@@ -1850,7 +1850,7 @@ static void restore_regulatory_settings(
+ 	mutex_lock(&cfg80211_mutex);
+ 	mutex_lock(&reg_mutex);
+ 
+-	reset_regdomains(true, cfg80211_world_regdom);
++	reset_regdomains(true, &world_regdom);
+ 	restore_alpha2(alpha2, reset_user);
+ 
+ 	/*
+@@ -2251,14 +2251,21 @@ int set_regdom(const struct ieee80211_re
+ 
+ int reg_device_uevent(struct device *dev, struct kobj_uevent_env *env)
+ {
+-	struct regulatory_request *lr = get_last_request();
++	struct regulatory_request *lr;
++	u8 alpha2[2];
++	bool add = false;
+ 
++	rcu_read_lock();
++	lr = get_last_request();
+ 	if (lr && !lr->processed) {
+-		if (add_uevent_var(env, "COUNTRY=%c%c",
+-				   lr->alpha2[0], lr->alpha2[1]))
+-			return -ENOMEM;
++		memcpy(alpha2, lr->alpha2, 2);
++		add = true;
+ 	}
++	rcu_read_unlock();
+ 
++	if (add)
++		return add_uevent_var(env, "COUNTRY=%c%c",
++				      alpha2[0], alpha2[1]);
+ 	return 0;
+ }
  

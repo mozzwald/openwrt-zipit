@@ -22,8 +22,23 @@ brcm63xx_detect() {
 		status_led="96328avng::power"
 		ifname=eth0
 		;;
+	96328A-1241N)
+		brcm63xx_has_reset_button="true"
+		status_led="96328A-1241N:green:power"
+		ifname=eth0
+		;;
+	96328A-1441N1)
+		brcm63xx_has_reset_button="true"
+		status_led="96328A-1441N1:green:power"
+		ifname=eth0
+		;;
 	963281TAN)
 		status_led="963281TAN::power"
+		ifname=eth0
+		;;
+	963281T_TEF)
+		brcm63xx_has_reset_button="true"
+		status_led="963281T_TEF:green:power"
 		ifname=eth0
 		;;
 	96348GW)
@@ -40,6 +55,11 @@ brcm63xx_detect() {
 		status_led2="tel"
 		brcm63xx_has_reset_button="true"
 		ifname=eth1
+		;;
+	HW556*)
+		status_led="HW556:red:power"
+		brcm63xx_has_reset_button="true"
+		ifname=eth0
 		;;
 	96348GW-11)
 		status_led="power"
@@ -79,6 +99,10 @@ brcm63xx_detect() {
 		;;
 	D-4P-W)
 		status_led="power:green"
+		brcm63xx_has_reset_button="true"
+		ifname=eth0
+		;;
+	NB6)
 		brcm63xx_has_reset_button="true"
 		ifname=eth0
 		;;
