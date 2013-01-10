@@ -1,0 +1,24 @@
+diff -urN linux-3.7.1/arch/arm/mach-pxa/include/mach/pxa27x.h linux-3.7.1-z2/arch/arm/mach-pxa/include/mach/pxa27x.h
+--- linux-3.7.1/arch/arm/mach-pxa/include/mach/pxa27x.h	2012-12-17 14:14:54.000000000 -0500
++++ linux-3.7.1-z2/arch/arm/mach-pxa/include/mach/pxa27x.h	2013-01-09 03:37:52.923800729 -0500
+@@ -21,7 +21,7 @@
+ 
+ extern void __init pxa27x_map_io(void);
+ extern void __init pxa27x_init_irq(void);
+-extern int __init pxa27x_set_pwrmode(unsigned int mode);
++extern int pxa27x_set_pwrmode(unsigned int mode);
+ extern void pxa27x_cpu_pm_enter(suspend_state_t state);
+ 
+ #define pxa27x_handle_irq	ichp_handle_irq
+diff -urN linux-3.7.1/arch/arm/mach-pxa/pxa27x.c linux-3.7.1-z2/arch/arm/mach-pxa/pxa27x.c
+--- linux-3.7.1/arch/arm/mach-pxa/pxa27x.c	2012-12-17 14:14:54.000000000 -0500
++++ linux-3.7.1-z2/arch/arm/mach-pxa/pxa27x.c	2013-01-09 03:38:17.197141204 -0500
+@@ -242,7 +242,7 @@
+  */
+ static unsigned int pwrmode = PWRMODE_SLEEP;
+ 
+-int __init pxa27x_set_pwrmode(unsigned int mode)
++int pxa27x_set_pwrmode(unsigned int mode)
+ {
+ 	switch (mode) {
+ 	case PWRMODE_SLEEP:

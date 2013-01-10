@@ -1,0 +1,26 @@
+diff -urN linux-3.7.1/arch/arm/mach-pxa/z2.c linux-3.7.1-z2/arch/arm/mach-pxa/z2.c
+--- linux-3.7.1/arch/arm/mach-pxa/z2.c	2012-12-17 14:14:54.000000000 -0500
++++ linux-3.7.1-z2/arch/arm/mach-pxa/z2.c	2013-01-09 03:50:33.727361365 -0500
+@@ -691,6 +691,13 @@
+ #define z2_power_off   NULL
+ #endif
+ 
++static void __init z2_map_io(void)
++{
++	pxa27x_map_io();
++
++	PWER &= ~(1 << 0);
++}
++
+ /******************************************************************************
+  * Machine init
+  ******************************************************************************/
+@@ -718,7 +725,7 @@
+ 
+ MACHINE_START(ZIPIT2, "Zipit Z2")
+ 	.atag_offset	= 0x100,
+-	.map_io		= pxa27x_map_io,
++	.map_io		= z2_map_io,
+ 	.nr_irqs	= PXA_NR_IRQS,
+ 	.init_irq	= pxa27x_init_irq,
+ 	.handle_irq	= pxa27x_handle_irq,

@@ -1,0 +1,36 @@
+diff -urN linux-3.7.1/arch/arm/mach-pxa/z2.c linux-3.7.1-z2/arch/arm/mach-pxa/z2.c
+--- linux-3.7.1/arch/arm/mach-pxa/z2.c	2012-12-17 14:14:54.000000000 -0500
++++ linux-3.7.1-z2/arch/arm/mach-pxa/z2.c	2013-01-09 04:03:56.857611439 -0500
+@@ -157,17 +157,25 @@
+ 
+ static struct mtd_partition z2_flash_parts[] = {
+ 	{
+-		.name	= "U-Boot Bootloader",
++		.name	= "U-Branch?",
+ 		.offset	= 0x0,
+-		.size	= 0x40000,
++		.size	= 0x2000,
+ 	}, {
+ 		.name	= "U-Boot Environment",
+-		.offset	= 0x40000,
+-		.size	= 0x20000,
++		.offset	= 0x2000,
++		.size	= 0x2000,
++	}, {
++		.name	= "U-Boot Bootloader",
++		.offset	= 0x4000,
++		.size	= 0x2C000,
++	}, {
++		.name   = "Kernel",
++		.offset = 0x30000,
++		.size   = 0x180000,
+ 	}, {
+-		.name	= "Flash",
+-		.offset	= 0x60000,
+-		.size	= MTDPART_SIZ_FULL,
++		.name   = "Filesystem",
++		.offset = 0x1B0000,
++		.size   = MTDPART_SIZ_FULL,
+ 	},
+ };
+ 
